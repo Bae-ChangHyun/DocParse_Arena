@@ -1,5 +1,14 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, field_serializer
 from datetime import datetime
+
+
+def _mask_key(v: str) -> str:
+    """Mask API key for safe display: show first 3 + last 4 chars."""
+    if not v:
+        return ""
+    if len(v) > 8:
+        return v[:3] + "***" + v[-4:]
+    return "***"
 
 
 class OcrModelOut(BaseModel):
@@ -37,6 +46,11 @@ class OcrModelAdmin(BaseModel):
 
     model_config = {"from_attributes": True}
 
+    @field_serializer("api_key")
+    @classmethod
+    def mask_api_key(cls, v: str) -> str:
+        return _mask_key(v)
+
 
 class OcrModelCreate(BaseModel):
     name: str
@@ -71,6 +85,11 @@ class ProviderSettingOut(BaseModel):
     is_enabled: bool
 
     model_config = {"from_attributes": True}
+
+    @field_serializer("api_key")
+    @classmethod
+    def mask_api_key(cls, v: str) -> str:
+        return _mask_key(v)
 
 
 class ProviderSettingCreate(BaseModel):

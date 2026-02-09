@@ -5,7 +5,7 @@ import uuid
 import aiofiles
 from datetime import datetime
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Query
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
 
@@ -165,6 +165,15 @@ async def vote_battle(battle_id: str, vote: VoteRequest, db: AsyncSession = Depe
     if battle.winner:
         raise HTTPException(status_code=400, detail="Already voted")
 
+    # Atomically mark battle as voted (prevents double-vote race condition)
+    vote_result = await db.execute(
+        update(Battle)
+        .where(Battle.id == battle_id, Battle.winner.is_(None))
+        .values(winner=vote.winner, voted_at=datetime.utcnow())
+    )
+    if vote_result.rowcount == 0:
+        raise HTTPException(status_code=400, detail="Already voted")
+
     model_a_res = await db.execute(select(OcrModel).where(OcrModel.id == battle.model_a_id))
     model_a = model_a_res.scalar_one()
     model_b_res = await db.execute(select(OcrModel).where(OcrModel.id == battle.model_b_id))
@@ -172,33 +181,38 @@ async def vote_battle(battle_id: str, vote: VoteRequest, db: AsyncSession = Depe
 
     change_a, change_b = calculate_elo_change(model_a.elo, model_b.elo, vote.winner)
 
-    model_a.elo += change_a
-    model_b.elo += change_b
-    model_a.total_battles += 1
-    model_b.total_battles += 1
+    # Atomic SQL updates to prevent lost updates under concurrency
+    update_a = {
+        "elo": OcrModel.elo + change_a,
+        "total_battles": OcrModel.total_battles + 1,
+    }
+    update_b = {
+        "elo": OcrModel.elo + change_b,
+        "total_battles": OcrModel.total_battles + 1,
+    }
 
     if vote.winner == "a":
-        model_a.wins += 1
-        model_b.losses += 1
+        update_a["wins"] = OcrModel.wins + 1
+        update_b["losses"] = OcrModel.losses + 1
     elif vote.winner == "b":
-        model_b.wins += 1
-        model_a.losses += 1
+        update_b["wins"] = OcrModel.wins + 1
+        update_a["losses"] = OcrModel.losses + 1
 
     if battle.model_a_latency_ms:
-        n = model_a.total_battles
-        model_a.avg_latency_ms = (
-            (model_a.avg_latency_ms * (n - 1) + battle.model_a_latency_ms) / n
-        )
+        update_a["avg_latency_ms"] = (
+            OcrModel.avg_latency_ms * OcrModel.total_battles + battle.model_a_latency_ms
+        ) / (OcrModel.total_battles + 1)
     if battle.model_b_latency_ms:
-        n = model_b.total_battles
-        model_b.avg_latency_ms = (
-            (model_b.avg_latency_ms * (n - 1) + battle.model_b_latency_ms) / n
-        )
+        update_b["avg_latency_ms"] = (
+            OcrModel.avg_latency_ms * OcrModel.total_battles + battle.model_b_latency_ms
+        ) / (OcrModel.total_battles + 1)
 
-    battle.winner = vote.winner
-    battle.voted_at = datetime.utcnow()
+    await db.execute(update(OcrModel).where(OcrModel.id == battle.model_a_id).values(**update_a))
+    await db.execute(update(OcrModel).where(OcrModel.id == battle.model_b_id).values(**update_b))
 
     await db.commit()
+
+    # Refresh for response
     await db.refresh(model_a)
     await db.refresh(model_b)
 

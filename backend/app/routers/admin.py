@@ -101,6 +101,9 @@ async def update_provider(
     for f in ("api_key", "base_url"):
         if f in updates and isinstance(updates[f], str):
             updates[f] = updates[f].strip()
+    # Skip masked api_key (frontend sends back masked value if unchanged)
+    if "api_key" in updates and "***" in updates["api_key"]:
+        del updates["api_key"]
     for field, value in updates.items():
         setattr(provider, field, value)
 
@@ -440,7 +443,11 @@ async def update_model(
     if not model:
         raise HTTPException(status_code=404, detail="Model not found")
 
-    for field, value in data.model_dump(exclude_none=True).items():
+    updates = data.model_dump(exclude_none=True)
+    # Skip masked api_key (frontend sends back masked value if unchanged)
+    if "api_key" in updates and "***" in updates["api_key"]:
+        del updates["api_key"]
+    for field, value in updates.items():
         setattr(model, field, value)
 
     await db.commit()
