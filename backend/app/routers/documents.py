@@ -66,7 +66,18 @@ async def get_document(filename: str):
     if not os.path.exists(filepath):
         raise HTTPException(status_code=404, detail="File not found")
 
-    return FileResponse(filepath, filename=filename)
+    ext = os.path.splitext(filename)[1].lower()
+    mime_map = {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".webp": "image/webp",
+        ".pdf": "application/pdf",
+        ".tiff": "image/tiff",
+        ".bmp": "image/bmp",
+    }
+    media_type = mime_map.get(ext, "application/octet-stream")
+    return FileResponse(filepath, media_type=media_type)
 
 
 @router.post("/upload")
