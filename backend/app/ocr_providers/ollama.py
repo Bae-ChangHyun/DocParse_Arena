@@ -1,7 +1,7 @@
 import base64
 import time
 import httpx
-from app.ocr_providers.base import OcrProvider, OCR_SYSTEM_PROMPT
+from app.ocr_providers.base import OcrProvider, DEFAULT_OCR_PROMPT
 from app.models.schemas import OcrResult
 
 
@@ -10,7 +10,8 @@ class OllamaOcrProvider(OcrProvider):
         self.base_url = base_url or "http://localhost:11434"
         self.model_id = model_id
 
-    async def process_image(self, image_data: bytes, mime_type: str) -> OcrResult:
+    async def process_image(self, image_data: bytes, mime_type: str, prompt: str = "") -> OcrResult:
+        system_prompt = prompt or DEFAULT_OCR_PROMPT
         start = time.time()
         try:
             b64_image = base64.b64encode(image_data).decode("utf-8")
@@ -20,7 +21,7 @@ class OllamaOcrProvider(OcrProvider):
                     json={
                         "model": self.model_id,
                         "messages": [
-                            {"role": "system", "content": OCR_SYSTEM_PROMPT},
+                            {"role": "system", "content": system_prompt},
                             {
                                 "role": "user",
                                 "content": "Convert this document to markdown.",

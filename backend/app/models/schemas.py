@@ -138,6 +138,30 @@ class PlaygroundResponse(BaseModel):
     latency_ms: int
 
 
+class PromptSettingOut(BaseModel):
+    id: str
+    name: str
+    prompt_text: str
+    is_default: bool
+    model_id: str | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class PromptSettingCreate(BaseModel):
+    name: str
+    prompt_text: str
+    is_default: bool = False
+    model_id: str | None = None
+
+
+class PromptSettingUpdate(BaseModel):
+    name: str | None = None
+    prompt_text: str | None = None
+    is_default: bool | None = None
+    model_id: str | None = None
+
+
 class OcrResult(BaseModel):
     text: str
     latency_ms: int

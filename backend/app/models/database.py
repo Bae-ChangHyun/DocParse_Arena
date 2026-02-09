@@ -21,6 +21,16 @@ class ProviderSetting(Base):
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
+class PromptSetting(Base):
+    __tablename__ = "prompt_settings"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    name: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    prompt_text: Mapped[str] = mapped_column(Text, nullable=False)
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False)
+    model_id: Mapped[str | None] = mapped_column(String, ForeignKey("ocr_models.id"), nullable=True)
+
+
 class OcrModel(Base):
     __tablename__ = "ocr_models"
 
