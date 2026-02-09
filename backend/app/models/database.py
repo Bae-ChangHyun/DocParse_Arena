@@ -16,6 +16,7 @@ class ProviderSetting(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
     display_name: Mapped[str] = mapped_column(String, nullable=False)
+    provider_type: Mapped[str] = mapped_column(String, default="")  # claude, openai, ..., custom
     api_key: Mapped[str] = mapped_column(String, default="")
     base_url: Mapped[str] = mapped_column(String, default="")
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
