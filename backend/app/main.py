@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.models.database import init_db
-from app.routers import battle, leaderboard, playground, documents
+from app.routers import battle, leaderboard, playground, documents, admin
 
 
 @asynccontextmanager
@@ -28,6 +28,7 @@ app.include_router(battle.router)
 app.include_router(leaderboard.router)
 app.include_router(playground.router)
 app.include_router(documents.router)
+app.include_router(admin.router)
 
 
 @app.get("/api/health")

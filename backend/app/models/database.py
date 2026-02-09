@@ -11,15 +11,27 @@ class Base(DeclarativeBase):
     pass
 
 
+class ProviderSetting(Base):
+    __tablename__ = "provider_settings"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    display_name: Mapped[str] = mapped_column(String, nullable=False)
+    api_key: Mapped[str] = mapped_column(String, default="")
+    base_url: Mapped[str] = mapped_column(String, default="")
+    is_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
 class OcrModel(Base):
     __tablename__ = "ocr_models"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     name: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     display_name: Mapped[str] = mapped_column(String, nullable=False)
-    icon: Mapped[str] = mapped_column(String, default="/file.svg")
+    icon: Mapped[str] = mapped_column(String, default="🤖")
     provider: Mapped[str] = mapped_column(String, nullable=False)
     model_id: Mapped[str] = mapped_column(String, nullable=False)
+    api_key: Mapped[str] = mapped_column(String, default="")
+    base_url: Mapped[str] = mapped_column(String, default="")
     config: Mapped[dict] = mapped_column(JSON, default=dict)
     elo: Mapped[int] = mapped_column(Integer, default=1500)
     wins: Mapped[int] = mapped_column(Integer, default=0)

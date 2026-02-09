@@ -18,6 +18,63 @@ class OcrModelOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class OcrModelAdmin(BaseModel):
+    id: str
+    name: str
+    display_name: str
+    icon: str
+    provider: str
+    model_id: str
+    api_key: str
+    base_url: str
+    elo: int
+    wins: int
+    losses: int
+    total_battles: int
+    avg_latency_ms: float
+    is_active: bool
+
+    model_config = {"from_attributes": True}
+
+
+class OcrModelCreate(BaseModel):
+    name: str
+    display_name: str
+    icon: str = "🤖"
+    provider: str
+    model_id: str
+    api_key: str = ""
+    base_url: str = ""
+    is_active: bool = True
+
+
+class OcrModelUpdate(BaseModel):
+    name: str | None = None
+    display_name: str | None = None
+    icon: str | None = None
+    provider: str | None = None
+    model_id: str | None = None
+    api_key: str | None = None
+    base_url: str | None = None
+    is_active: bool | None = None
+
+
+class ProviderSettingOut(BaseModel):
+    id: str
+    display_name: str
+    api_key: str
+    base_url: str
+    is_enabled: bool
+
+    model_config = {"from_attributes": True}
+
+
+class ProviderSettingUpdate(BaseModel):
+    api_key: str | None = None
+    base_url: str | None = None
+    is_enabled: bool | None = None
+
+
 class BattleStartResponse(BaseModel):
     battle_id: str
     document_url: str
@@ -26,13 +83,13 @@ class BattleStartResponse(BaseModel):
 
 
 class BattleStreamEvent(BaseModel):
-    event: str  # "model_a_result", "model_b_result", "error", "done"
+    event: str
     data: str
     latency_ms: int | None = None
 
 
 class VoteRequest(BaseModel):
-    winner: str  # "a", "b", "tie"
+    winner: str
 
 
 class VoteResponse(BaseModel):

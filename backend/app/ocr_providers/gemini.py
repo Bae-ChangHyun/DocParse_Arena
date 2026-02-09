@@ -2,13 +2,12 @@ import time
 import google.generativeai as genai
 from app.ocr_providers.base import OcrProvider, OCR_SYSTEM_PROMPT
 from app.models.schemas import OcrResult
-from app.config import get_settings
 
 
 class GeminiOcrProvider(OcrProvider):
-    def __init__(self, model_id: str = "gemini-2.0-flash"):
-        settings = get_settings()
-        genai.configure(api_key=settings.google_api_key)
+    def __init__(self, model_id: str = "gemini-2.0-flash", api_key: str = "", base_url: str = ""):
+        if api_key:
+            genai.configure(api_key=api_key)
         self.model = genai.GenerativeModel(
             model_name=model_id,
             system_instruction=OCR_SYSTEM_PROMPT,

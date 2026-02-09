@@ -180,3 +180,106 @@ export function getDocumentUrl(path: string): string {
 export function getApiBase(): string {
   return API_BASE;
 }
+
+// ── Admin API ──────────────────────────────────────────
+
+export interface ProviderSetting {
+  id: string;
+  display_name: string;
+  api_key: string;
+  base_url: string;
+  is_enabled: boolean;
+}
+
+export interface OcrModelAdmin {
+  id: string;
+  name: string;
+  display_name: string;
+  icon: string;
+  provider: string;
+  model_id: string;
+  api_key: string;
+  base_url: string;
+  elo: number;
+  wins: number;
+  losses: number;
+  total_battles: number;
+  avg_latency_ms: number;
+  is_active: boolean;
+}
+
+export interface OcrModelCreate {
+  name: string;
+  display_name: string;
+  icon?: string;
+  provider: string;
+  model_id: string;
+  api_key?: string;
+  base_url?: string;
+  is_active?: boolean;
+}
+
+export async function getProviders(): Promise<ProviderSetting[]> {
+  const res = await fetch(`${API_BASE}/api/admin/providers`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function updateProvider(id: string, data: Partial<ProviderSetting>): Promise<ProviderSetting> {
+  const res = await fetch(`${API_BASE}/api/admin/providers/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function getAdminModels(): Promise<OcrModelAdmin[]> {
+  const res = await fetch(`${API_BASE}/api/admin/models`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function createModel(data: OcrModelCreate): Promise<OcrModelAdmin> {
+  const res = await fetch(`${API_BASE}/api/admin/models`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function updateModel(id: string, data: Partial<OcrModelCreate>): Promise<OcrModelAdmin> {
+  const res = await fetch(`${API_BASE}/api/admin/models/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function toggleModel(id: string): Promise<OcrModelAdmin> {
+  const res = await fetch(`${API_BASE}/api/admin/models/${id}/toggle`, {
+    method: "PATCH",
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function deleteModel(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/admin/models/${id}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error(await res.text());
+}
+
+export async function resetModelElo(id: string): Promise<OcrModelAdmin> {
+  const res = await fetch(`${API_BASE}/api/admin/models/${id}/reset-elo`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}

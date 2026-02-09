@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { Swords, FlaskConical, Trophy, Info, Menu, X } from "lucide-react";
+import { Swords, FlaskConical, Trophy, Info, Menu, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -13,6 +13,7 @@ const navItems = [
   { href: "/playground", label: "Playground", icon: FlaskConical },
   { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
   { href: "/about", label: "About", icon: Info },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export default function Header() {
