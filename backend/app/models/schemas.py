@@ -27,6 +27,7 @@ class OcrModelAdmin(BaseModel):
     model_id: str
     api_key: str
     base_url: str
+    config: dict = {}
     elo: int
     wins: int
     losses: int
@@ -45,6 +46,7 @@ class OcrModelCreate(BaseModel):
     model_id: str
     api_key: str = ""
     base_url: str = ""
+    config: dict = {}
     is_active: bool = True
 
 
@@ -56,12 +58,14 @@ class OcrModelUpdate(BaseModel):
     model_id: str | None = None
     api_key: str | None = None
     base_url: str | None = None
+    config: dict | None = None
     is_active: bool | None = None
 
 
 class ProviderSettingOut(BaseModel):
     id: str
     display_name: str
+    provider_type: str
     api_key: str
     base_url: str
     is_enabled: bool
@@ -69,7 +73,16 @@ class ProviderSettingOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ProviderSettingCreate(BaseModel):
+    display_name: str
+    provider_type: str = "custom"
+    api_key: str = ""
+    base_url: str = ""
+    is_enabled: bool = True
+
+
 class ProviderSettingUpdate(BaseModel):
+    display_name: str | None = None
     api_key: str | None = None
     base_url: str | None = None
     is_enabled: bool | None = None

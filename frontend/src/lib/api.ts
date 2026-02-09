@@ -186,9 +186,35 @@ export function getApiBase(): string {
 export interface ProviderSetting {
   id: string;
   display_name: string;
+  provider_type: string;
   api_key: string;
   base_url: string;
   is_enabled: boolean;
+}
+
+export interface ProviderSettingCreate {
+  display_name: string;
+  provider_type?: string;
+  api_key?: string;
+  base_url?: string;
+  is_enabled?: boolean;
+}
+
+export interface ProviderTestResult {
+  ok: boolean;
+  message: string;
+  disabled_models: string[];
+}
+
+export interface TestAllResult {
+  results: {
+    provider_id: string;
+    display_name: string;
+    ok: boolean;
+    message: string;
+    disabled_models: string[];
+  }[];
+  total_disabled: string[];
 }
 
 export interface OcrModelAdmin {
@@ -200,12 +226,14 @@ export interface OcrModelAdmin {
   model_id: string;
   api_key: string;
   base_url: string;
+  config: Record<string, unknown>;
   elo: number;
   wins: number;
   losses: number;
   total_battles: number;
   avg_latency_ms: number;
   is_active: boolean;
+  provider_ok?: boolean;
 }
 
 export interface OcrModelCreate {
@@ -216,11 +244,22 @@ export interface OcrModelCreate {
   model_id: string;
   api_key?: string;
   base_url?: string;
+  config?: Record<string, unknown>;
   is_active?: boolean;
 }
 
 export async function getProviders(): Promise<ProviderSetting[]> {
   const res = await fetch(`${API_BASE}/api/admin/providers`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function createProvider(data: ProviderSettingCreate): Promise<ProviderSetting> {
+  const res = await fetch(`${API_BASE}/api/admin/providers`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
@@ -233,6 +272,36 @@ export async function updateProvider(id: string, data: Partial<ProviderSetting>)
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
+}
+
+export async function deleteProvider(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/admin/providers/${id}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error(await res.text());
+}
+
+export async function testProvider(id: string): Promise<ProviderTestResult> {
+  const res = await fetch(`${API_BASE}/api/admin/providers/${id}/test`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function testAllProviders(): Promise<TestAllResult> {
+  const res = await fetch(`${API_BASE}/api/admin/providers/test-all`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function getProviderModels(providerId: string): Promise<string[]> {
+  const res = await fetch(`${API_BASE}/api/admin/providers/${providerId}/models`);
+  if (!res.ok) return [];
+  const data = await res.json();
+  return data.models || [];
 }
 
 export async function getAdminModels(): Promise<OcrModelAdmin[]> {

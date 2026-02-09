@@ -25,20 +25,22 @@ PROVIDER_MAP = {
 }
 
 
-async def _resolve_credentials(db: AsyncSession, model: OcrModel) -> tuple[str, str]:
+async def _resolve_credentials(db: AsyncSession, model: OcrModel) -> tuple[str, str, str]:
+    """Returns (api_key, base_url, provider_type)."""
     api_key = model.api_key or ""
     base_url = model.base_url or ""
-    if not api_key or not base_url:
-        result = await db.execute(
-            select(ProviderSetting).where(ProviderSetting.id == model.provider)
-        )
-        ps = result.scalar_one_or_none()
-        if ps:
-            if not api_key:
-                api_key = ps.api_key or ""
-            if not base_url:
-                base_url = ps.base_url or ""
-    return api_key, base_url
+    provider_type = model.provider  # fallback: use model.provider as type
+    result = await db.execute(
+        select(ProviderSetting).where(ProviderSetting.id == model.provider)
+    )
+    ps = result.scalar_one_or_none()
+    if ps:
+        provider_type = ps.provider_type or model.provider
+        if not api_key:
+            api_key = ps.api_key or ""
+        if not base_url:
+            base_url = ps.base_url or ""
+    return api_key.strip(), base_url.strip(), provider_type
 
 
 async def _resolve_prompt(db: AsyncSession, model: OcrModel) -> str:
@@ -62,11 +64,11 @@ async def _resolve_prompt(db: AsyncSession, model: OcrModel) -> str:
     return ""
 
 
-def get_provider(provider_name: str, model_id: str, api_key: str = "", base_url: str = "") -> OcrProvider:
+def get_provider(provider_name: str, model_id: str, api_key: str = "", base_url: str = "", extra_config: dict | None = None) -> OcrProvider:
     provider_cls = PROVIDER_MAP.get(provider_name)
     if not provider_cls:
         raise ValueError(f"Unknown provider: {provider_name}")
-    return provider_cls(model_id=model_id, api_key=api_key, base_url=base_url)
+    return provider_cls(model_id=model_id, api_key=api_key, base_url=base_url, extra_config=extra_config)
 
 
 async def select_random_models(db: AsyncSession, count: int = 2) -> list[OcrModel]:
@@ -74,19 +76,34 @@ async def select_random_models(db: AsyncSession, count: int = 2) -> list[OcrMode
     models = list(result.scalars().all())
     if len(models) < count:
         raise ValueError(f"Not enough active models. Need {count}, have {len(models)}")
-    return random.sample(models, count)
+
+    # Weighted selection: models with fewer battles get higher weight
+    max_battles = max((m.total_battles for m in models), default=0)
+    weights = [max_battles - m.total_battles + 1 for m in models]
+
+    # Pick first model weighted
+    first = random.choices(models, weights=weights, k=1)[0]
+
+    # Pick second model from remaining (also weighted)
+    remaining = [m for m in models if m.id != first.id]
+    remaining_weights = [max_battles - m.total_battles + 1 for m in remaining]
+    second = random.choices(remaining, weights=remaining_weights, k=1)[0]
+
+    return [first, second]
 
 
 async def run_ocr(model: OcrModel, image_data: bytes, mime_type: str, db: AsyncSession | None = None) -> OcrResult:
     api_key = model.api_key or ""
     base_url = model.base_url or ""
+    provider_type = model.provider
     prompt = ""
 
     if db:
-        api_key, base_url = await _resolve_credentials(db, model)
+        api_key, base_url, provider_type = await _resolve_credentials(db, model)
         prompt = await _resolve_prompt(db, model)
 
-    provider = get_provider(model.provider, model.model_id, api_key, base_url)
+    extra_config = model.config if isinstance(model.config, dict) else {}
+    provider = get_provider(provider_type, model.model_id, api_key, base_url, extra_config)
 
     # Handle PDF: split into pages, OCR each, merge
     if mime_type == "application/pdf":

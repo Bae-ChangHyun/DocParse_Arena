@@ -1,26 +1,32 @@
 import time
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from app.ocr_providers.base import OcrProvider, DEFAULT_OCR_PROMPT
 from app.models.schemas import OcrResult
 
 
 class GeminiOcrProvider(OcrProvider):
-    def __init__(self, model_id: str = "gemini-2.0-flash", api_key: str = "", base_url: str = ""):
+    def __init__(self, model_id: str = "gemini-2.0-flash", api_key: str = "", base_url: str = "", extra_config: dict | None = None):
+        kwargs = {}
         if api_key:
-            genai.configure(api_key=api_key)
+            kwargs["api_key"] = api_key
+        self.client = genai.Client(**kwargs)
         self.model_id = model_id
+        self.extra_config = extra_config or {}
 
     async def process_image(self, image_data: bytes, mime_type: str, prompt: str = "") -> OcrResult:
         system_prompt = prompt or DEFAULT_OCR_PROMPT
         start = time.time()
         try:
-            model = genai.GenerativeModel(
-                model_name=self.model_id,
-                system_instruction=system_prompt,
-            )
-            image_part = {"mime_type": mime_type, "data": image_data}
-            response = await model.generate_content_async(
-                [image_part, "Convert this document to markdown."]
+            config_kwargs = {"system_instruction": system_prompt}
+            config_kwargs.update(self.extra_config)
+            response = await self.client.aio.models.generate_content(
+                model=self.model_id,
+                config=types.GenerateContentConfig(**config_kwargs),
+                contents=[
+                    types.Part.from_bytes(data=image_data, mime_type=mime_type),
+                    "Convert this document to markdown.",
+                ],
             )
             latency = int((time.time() - start) * 1000)
             text = response.text or ""

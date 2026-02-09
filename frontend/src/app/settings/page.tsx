@@ -3,7 +3,12 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   getProviders,
+  createProvider,
   updateProvider,
+  deleteProvider,
+  testProvider,
+  testAllProviders,
+  getProviderModels,
   getAdminModels,
   createModel,
   updateModel,
@@ -63,17 +68,14 @@ import {
   Bot,
   MessageSquareText,
   Star,
+  Wifi,
+  WifiOff,
+  Zap,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const PROVIDER_OPTIONS = [
-  { value: "claude", label: "Anthropic Claude" },
-  { value: "openai", label: "OpenAI" },
-  { value: "gemini", label: "Google Gemini" },
-  { value: "mistral", label: "Mistral AI" },
-  { value: "ollama", label: "Ollama (Local)" },
-  { value: "custom", label: "Custom (OpenAI-compatible)" },
-];
+const BUILTIN_IDS = new Set(["claude", "openai", "gemini", "mistral", "ollama"]);
 
 type SettingsSection = "providers" | "models" | "prompts";
 
@@ -91,13 +93,23 @@ function ProviderSettings() {
   const [saving, setSaving] = useState<string | null>(null);
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
   const [edits, setEdits] = useState<Record<string, Partial<ProviderSetting>>>({});
+  const [testing, setTesting] = useState<string | null>(null);
+  const [testResults, setTestResults] = useState<Record<string, { ok: boolean; message: string }>>({});
+  const [testingAll, setTestingAll] = useState(false);
 
-  useEffect(() => {
+  // Add custom provider dialog
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [newProvider, setNewProvider] = useState({ display_name: "", base_url: "", api_key: "" });
+  const [addingProvider, setAddingProvider] = useState(false);
+
+  const loadProviders = useCallback(() => {
     getProviders()
       .then(setProviders)
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { loadProviders(); }, [loadProviders]);
 
   const handleSave = async (id: string) => {
     const changes = edits[id];
@@ -130,26 +142,136 @@ function ProviderSettings() {
     return provider[field];
   };
 
+  const handleTest = async (id: string) => {
+    setTesting(id);
+    try {
+      const result = await testProvider(id);
+      setTestResults((prev) => ({ ...prev, [id]: { ok: result.ok, message: result.message } }));
+      if (result.disabled_models.length > 0) {
+        alert(`Connection failed. Disabled models: ${result.disabled_models.join(", ")}`);
+      }
+    } catch (e) {
+      setTestResults((prev) => ({ ...prev, [id]: { ok: false, message: "Test failed" } }));
+    }
+    setTesting(null);
+  };
+
+  const handleTestAll = async () => {
+    setTestingAll(true);
+    try {
+      const result = await testAllProviders();
+      const newResults: Record<string, { ok: boolean; message: string }> = {};
+      for (const r of result.results) {
+        newResults[r.provider_id] = { ok: r.ok, message: r.message };
+      }
+      setTestResults(newResults);
+      if (result.total_disabled.length > 0) {
+        alert(`Disabled models due to connection failure:\n${result.total_disabled.join(", ")}`);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    setTestingAll(false);
+  };
+
+  const handleAddCustom = async () => {
+    setAddingProvider(true);
+    try {
+      await createProvider({
+        display_name: newProvider.display_name,
+        provider_type: "custom",
+        base_url: newProvider.base_url,
+        api_key: newProvider.api_key,
+        is_enabled: true,
+      });
+      setAddDialogOpen(false);
+      setNewProvider({ display_name: "", base_url: "", api_key: "" });
+      loadProviders();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Failed");
+    }
+    setAddingProvider(false);
+  };
+
+  const handleDeleteProvider = async (id: string, name: string) => {
+    if (!confirm(`Delete provider "${name}"? Models using this provider must be removed first.`)) return;
+    try {
+      await deleteProvider(id);
+      setProviders((prev) => prev.filter((p) => p.id !== id));
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Failed to delete");
+    }
+  };
+
+  const isUrlBased = (p: ProviderSetting) =>
+    p.provider_type === "ollama" || p.provider_type === "custom";
+
   if (loading) return <div className="text-center py-8 text-muted-foreground">Loading providers...</div>;
 
   return (
     <div className="space-y-4">
-      <div className="mb-2">
-        <h2 className="text-lg font-semibold">API Providers</h2>
-        <p className="text-sm text-muted-foreground">Configure API keys and endpoints for each provider</p>
+      <div className="flex items-center justify-between mb-2">
+        <div>
+          <h2 className="text-lg font-semibold">API Providers</h2>
+          <p className="text-sm text-muted-foreground">Configure API keys and endpoints</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={handleTestAll} disabled={testingAll} className="gap-1.5">
+            {testingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+            Test All
+          </Button>
+          <Button size="sm" onClick={() => setAddDialogOpen(true)} className="gap-1.5">
+            <Plus className="h-3.5 w-3.5" />
+            Add Custom
+          </Button>
+        </div>
       </div>
+
       {providers.map((provider) => (
-        <Card key={provider.id}>
+        <Card key={provider.id} className={testResults[provider.id] ? (testResults[provider.id].ok ? "border-green-500/30" : "border-red-500/30") : ""}>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-base">{provider.display_name}</CardTitle>
-                <CardDescription className="text-xs font-mono">{provider.id}</CardDescription>
+                {BUILTIN_IDS.has(provider.id) ? (
+                  <>
+                    <CardTitle className="text-base">{provider.display_name}</CardTitle>
+                    <CardDescription className="text-xs font-mono">{provider.id}</CardDescription>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={(getValue(provider, "display_name") as string) || ""}
+                        onChange={(e) => setEdit(provider.id, "display_name", e.target.value)}
+                        className="h-7 text-sm font-semibold w-48"
+                      />
+                      <Badge variant="outline" className="text-[10px]">custom</Badge>
+                    </div>
+                    <CardDescription className="text-xs font-mono mt-0.5">{provider.id.slice(0, 8)}...</CardDescription>
+                  </>
+                )}
               </div>
-              <Switch
-                checked={getValue(provider, "is_enabled") as boolean}
-                onCheckedChange={(v) => setEdit(provider.id, "is_enabled", v)}
-              />
+              <div className="flex items-center gap-2">
+                {testResults[provider.id] && (
+                  <Badge variant={testResults[provider.id].ok ? "default" : "destructive"} className="text-[10px] gap-1 shrink-0">
+                    {testResults[provider.id].ok ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+                    {testResults[provider.id].message}
+                  </Badge>
+                )}
+                <Button variant="ghost" size="sm" onClick={() => handleTest(provider.id)} disabled={testing === provider.id} className="gap-1 h-7 px-2 text-xs shrink-0">
+                  {testing === provider.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wifi className="h-3 w-3" />}
+                  Test
+                </Button>
+                {!BUILTIN_IDS.has(provider.id) && (
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive shrink-0" onClick={() => handleDeleteProvider(provider.id, provider.display_name)}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+                <Switch
+                  checked={getValue(provider, "is_enabled") as boolean}
+                  onCheckedChange={(v) => setEdit(provider.id, "is_enabled", v)}
+                />
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -161,7 +283,7 @@ function ProviderSettings() {
                     type={showKeys[provider.id] ? "text" : "password"}
                     value={(getValue(provider, "api_key") as string) || ""}
                     onChange={(e) => setEdit(provider.id, "api_key", e.target.value)}
-                    placeholder={provider.id === "ollama" ? "(not required)" : "Enter API key..."}
+                    placeholder={provider.provider_type === "ollama" ? "(not required)" : "Enter API key..."}
                     className="pr-10 font-mono text-sm"
                   />
                   <Button
@@ -172,23 +294,19 @@ function ProviderSettings() {
                       setShowKeys((prev) => ({ ...prev, [provider.id]: !prev[provider.id] }))
                     }
                   >
-                    {showKeys[provider.id] ? (
-                      <EyeOff className="h-3.5 w-3.5" />
-                    ) : (
-                      <Eye className="h-3.5 w-3.5" />
-                    )}
+                    {showKeys[provider.id] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                   </Button>
                 </div>
               </div>
             </div>
 
-            {(provider.id === "ollama" || provider.id === "custom") && (
+            {isUrlBased(provider) && (
               <div className="space-y-1.5">
                 <Label className="text-xs">Base URL</Label>
                 <Input
                   value={(getValue(provider, "base_url") as string) || ""}
                   onChange={(e) => setEdit(provider.id, "base_url", e.target.value)}
-                  placeholder={provider.id === "ollama" ? "http://localhost:11434" : "https://your-endpoint.com/v1"}
+                  placeholder={provider.provider_type === "ollama" ? "http://localhost:11434" : "https://your-endpoint.com/v1"}
                   className="font-mono text-sm"
                 />
               </div>
@@ -202,11 +320,7 @@ function ProviderSettings() {
                   disabled={saving === provider.id}
                   className="gap-1.5"
                 >
-                  {saving === provider.id ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Save className="h-3.5 w-3.5" />
-                  )}
+                  {saving === provider.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
                   Save
                 </Button>
               </div>
@@ -214,48 +328,121 @@ function ProviderSettings() {
           </CardContent>
         </Card>
       ))}
+
+      {/* Add Custom Provider Dialog */}
+      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Custom Provider</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Provider Name</Label>
+              <Input
+                value={newProvider.display_name}
+                onChange={(e) => setNewProvider({ ...newProvider, display_name: e.target.value })}
+                placeholder="e.g., My vLLM Server, LiteLLM Gateway"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Base URL</Label>
+              <Input
+                value={newProvider.base_url}
+                onChange={(e) => setNewProvider({ ...newProvider, base_url: e.target.value })}
+                placeholder="https://your-endpoint.com/v1"
+                className="font-mono text-sm"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">API Key (optional)</Label>
+              <Input
+                type="password"
+                value={newProvider.api_key}
+                onChange={(e) => setNewProvider({ ...newProvider, api_key: e.target.value })}
+                placeholder="Leave empty if not required"
+                className="font-mono text-sm"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleAddCustom} disabled={addingProvider || !newProvider.display_name || !newProvider.base_url}>
+              {addingProvider ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Create
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
 // ── Model Management Section ────────────────────────────
 
-const EMPTY_FORM: OcrModelCreate = {
+const EMPTY_FORM: OcrModelCreate & { config: Record<string, unknown> } = {
   name: "",
   display_name: "",
   icon: "\u{1F916}",
-  provider: "openai",
+  provider: "",
   model_id: "",
   api_key: "",
   base_url: "",
-  is_active: true,
+  config: {},
+  is_active: false,
 };
 
 function ModelManagement() {
   const [models, setModels] = useState<OcrModelAdmin[]>([]);
+  const [providers, setProviders] = useState<ProviderSetting[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<OcrModelCreate>(EMPTY_FORM);
+  const [form, setForm] = useState<OcrModelCreate & { config: Record<string, unknown> }>(EMPTY_FORM);
+  const [configText, setConfigText] = useState("{}");
+  const [configError, setConfigError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
 
-  const loadModels = useCallback(() => {
-    getAdminModels()
-      .then(setModels)
-      .catch(console.error)
-      .finally(() => setLoading(false));
+  const loadData = useCallback(async () => {
+    try {
+      const [m, p] = await Promise.all([getAdminModels(), getProviders()]);
+      setModels(m);
+      setProviders(p);
+    } catch (e) {
+      console.error(e);
+    }
+    setLoading(false);
   }, []);
 
-  useEffect(() => { loadModels(); }, [loadModels]);
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const fetchProviderModels = useCallback(async (providerId: string) => {
+    if (!providerId) return;
+    setLoadingModels(true);
+    try {
+      const modelIds = await getProviderModels(providerId);
+      setAvailableModels(modelIds);
+    } catch {
+      setAvailableModels([]);
+    }
+    setLoadingModels(false);
+  }, []);
 
   const openCreate = () => {
     setEditingId(null);
-    setForm(EMPTY_FORM);
+    const firstProvider = providers[0]?.id || "";
+    setForm({ ...EMPTY_FORM, provider: firstProvider });
+    setConfigText("{}");
+    setConfigError("");
+    setAvailableModels([]);
+    if (firstProvider) fetchProviderModels(firstProvider);
     setDialogOpen(true);
   };
 
   const openEdit = (model: OcrModelAdmin) => {
     setEditingId(model.id);
+    const cfg = model.config || {};
     setForm({
       name: model.name,
       display_name: model.display_name,
@@ -264,21 +451,38 @@ function ModelManagement() {
       model_id: model.model_id,
       api_key: model.api_key,
       base_url: model.base_url,
+      config: cfg,
       is_active: model.is_active,
     });
+    setConfigText(Object.keys(cfg).length > 0 ? JSON.stringify(cfg, null, 2) : "{}");
+    setConfigError("");
     setDialogOpen(true);
   };
 
   const handleSubmit = async () => {
+    // Validate JSON config
+    let parsedConfig: Record<string, unknown> = {};
+    try {
+      parsedConfig = JSON.parse(configText);
+      if (typeof parsedConfig !== "object" || Array.isArray(parsedConfig)) {
+        alert("Extra kwargs must be a JSON object");
+        return;
+      }
+    } catch {
+      alert("Invalid JSON in extra kwargs");
+      return;
+    }
+
     setSubmitting(true);
     try {
+      const payload = { ...form, config: parsedConfig };
       if (editingId) {
-        await updateModel(editingId, form);
+        await updateModel(editingId, payload);
       } else {
-        await createModel(form);
+        await createModel(payload);
       }
       setDialogOpen(false);
-      loadModels();
+      await loadData();
     } catch (e) {
       alert(e instanceof Error ? e.message : "Failed");
     }
@@ -313,6 +517,14 @@ function ModelManagement() {
       console.error(e);
     }
   };
+
+  const getProviderName = (providerId: string) => {
+    const p = providers.find((pr) => pr.id === providerId);
+    return p?.display_name || providerId;
+  };
+
+  const selectedProvider = providers.find((p) => p.id === form.provider);
+  const isUrlBasedProvider = selectedProvider && (selectedProvider.provider_type === "ollama" || selectedProvider.provider_type === "custom");
 
   if (loading) return <div className="text-center py-8 text-muted-foreground">Loading models...</div>;
 
@@ -367,7 +579,15 @@ function ModelManagement() {
                   </div>
                 </TableCell>
                 <TableCell>
-                  <Badge variant="secondary" className="text-xs">{model.provider}</Badge>
+                  <div className="flex items-center gap-1.5">
+                    <Badge variant="secondary" className="text-xs">{getProviderName(model.provider)}</Badge>
+                    {model.provider_ok === false && (
+                      <Badge variant="destructive" className="text-[10px] gap-0.5">
+                        <WifiOff className="h-2.5 w-2.5" />
+                        No Key
+                      </Badge>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell className="font-mono text-xs max-w-[200px] truncate">{model.model_id}</TableCell>
                 <TableCell className="text-center">
@@ -403,7 +623,7 @@ function ModelManagement() {
         </Table>
       </div>
 
-      {/* Add / Edit Dialog */}
+      {/* Add / Edit Model Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
@@ -437,34 +657,67 @@ function ModelManagement() {
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 placeholder="gpt-4o-vision"
                 className="font-mono"
-                disabled={!!editingId}
               />
             </div>
 
             <div className="space-y-1.5">
               <Label className="text-xs">Provider</Label>
-              <Select value={form.provider} onValueChange={(v) => setForm({ ...form, provider: v })}>
+              <Select value={form.provider} onValueChange={(v) => {
+                setForm({ ...form, provider: v, model_id: "" });
+                fetchProviderModels(v);
+              }}>
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Select provider" />
                 </SelectTrigger>
                 <SelectContent>
-                  {PROVIDER_OPTIONS.map((p) => (
-                    <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                  {providers.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.display_name}
+                      {!BUILTIN_IDS.has(p.id) && <span className="ml-1 text-muted-foreground">(custom)</span>}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs">Model ID</Label>
-              <Input
-                value={form.model_id}
-                onChange={(e) => setForm({ ...form, model_id: e.target.value })}
-                placeholder="gpt-4o / claude-sonnet-4-20250514 / ..."
-                className="font-mono"
-              />
+              <Label className="text-xs flex items-center gap-2">
+                Model ID
+                {loadingModels && <Loader2 className="h-3 w-3 animate-spin" />}
+              </Label>
+              {availableModels.length > 0 ? (
+                <div className="space-y-1.5">
+                  <Select value={form.model_id} onValueChange={(v) => setForm({ ...form, model_id: v })}>
+                    <SelectTrigger className="font-mono">
+                      <SelectValue placeholder="Select model" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-60">
+                      {availableModels.map((m) => (
+                        <SelectItem key={m} value={m} className="font-mono text-xs">
+                          {m}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    value={form.model_id}
+                    onChange={(e) => setForm({ ...form, model_id: e.target.value })}
+                    placeholder="Or type manually..."
+                    className="font-mono text-xs"
+                  />
+                </div>
+              ) : (
+                <Input
+                  value={form.model_id}
+                  onChange={(e) => setForm({ ...form, model_id: e.target.value })}
+                  placeholder="gpt-4o / claude-sonnet-4-20250514 / ..."
+                  className="font-mono"
+                />
+              )}
               <p className="text-[11px] text-muted-foreground">
-                The actual model identifier sent to the API
+                {availableModels.length > 0
+                  ? `${availableModels.length} models found from provider API`
+                  : "The actual model identifier sent to the API"}
               </p>
             </div>
 
@@ -483,17 +736,40 @@ function ModelManagement() {
                 />
               </div>
 
-              {(form.provider === "ollama" || form.provider === "custom") && (
+              {isUrlBasedProvider && (
                 <div className="space-y-1.5">
                   <Label className="text-xs">Base URL (optional)</Label>
                   <Input
                     value={form.base_url}
                     onChange={(e) => setForm({ ...form, base_url: e.target.value })}
-                    placeholder="https://your-endpoint.com/v1"
+                    placeholder="Uses provider base URL if empty"
                     className="font-mono text-sm"
                   />
                 </div>
               )}
+            </div>
+
+            <div className="border-t pt-3 space-y-1.5">
+              <Label className="text-xs">Extra kwargs (JSON)</Label>
+              <Textarea
+                value={configText}
+                onChange={(e) => {
+                  setConfigText(e.target.value);
+                  try {
+                    JSON.parse(e.target.value);
+                    setConfigError("");
+                  } catch {
+                    setConfigError("Invalid JSON");
+                  }
+                }}
+                placeholder='{"max_completion_tokens": 4096, "temperature": 0.2}'
+                rows={3}
+                className={cn("font-mono text-xs", configError && "border-destructive")}
+              />
+              {configError && <p className="text-[11px] text-destructive">{configError}</p>}
+              <p className="text-[11px] text-muted-foreground">
+                Additional API call parameters as JSON. e.g. max_completion_tokens, temperature
+              </p>
             </div>
           </div>
 
@@ -501,7 +777,7 @@ function ModelManagement() {
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSubmit} disabled={submitting || !form.name || !form.display_name || !form.model_id}>
+            <Button onClick={handleSubmit} disabled={submitting || !form.name || !form.display_name || !form.model_id || !form.provider}>
               {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               {editingId ? "Update" : "Create"}
             </Button>
@@ -613,7 +889,6 @@ function PromptManagement() {
       </div>
 
       <div className="space-y-4">
-        {/* Default Prompt */}
         {defaultPrompt && (
           <Card className="border-primary/30">
             <CardHeader className="pb-2">
@@ -623,11 +898,9 @@ function PromptManagement() {
                   <CardTitle className="text-base">{defaultPrompt.name}</CardTitle>
                   <Badge variant="default" className="text-xs">Default</Badge>
                 </div>
-                <div className="flex gap-1">
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(defaultPrompt)}>
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(defaultPrompt)}>
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
               </div>
             </CardHeader>
             <CardContent>
@@ -638,7 +911,6 @@ function PromptManagement() {
           </Card>
         )}
 
-        {/* Model-specific Prompts */}
         {modelPrompts.length > 0 && (
           <div>
             <h3 className="text-sm font-medium text-muted-foreground mb-2">Model-Specific Prompts</h3>
@@ -649,18 +921,13 @@ function PromptManagement() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <CardTitle className="text-base">{prompt.name}</CardTitle>
-                        <Badge variant="secondary" className="text-xs">
-                          {getModelName(prompt.model_id)}
-                        </Badge>
+                        <Badge variant="secondary" className="text-xs">{getModelName(prompt.model_id)}</Badge>
                       </div>
                       <div className="flex gap-1">
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(prompt)}>
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
-                        <Button
-                          variant="ghost" size="icon" className="h-7 w-7 text-destructive"
-                          onClick={() => handleDelete(prompt.id, prompt.name)}
-                        >
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(prompt.id, prompt.name)}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
@@ -677,7 +944,6 @@ function PromptManagement() {
           </div>
         )}
 
-        {/* Other Prompts */}
         {otherPrompts.length > 0 && (
           <div>
             <h3 className="text-sm font-medium text-muted-foreground mb-2">Other Prompts</h3>
@@ -691,10 +957,7 @@ function PromptManagement() {
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(prompt)}>
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
-                        <Button
-                          variant="ghost" size="icon" className="h-7 w-7 text-destructive"
-                          onClick={() => handleDelete(prompt.id, prompt.name)}
-                        >
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(prompt.id, prompt.name)}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
@@ -724,7 +987,6 @@ function PromptManagement() {
           <DialogHeader>
             <DialogTitle>{editingId ? "Edit Prompt" : "Add New Prompt"}</DialogTitle>
           </DialogHeader>
-
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
               <Label className="text-xs">Name</Label>
@@ -734,7 +996,6 @@ function PromptManagement() {
                 placeholder="e.g., Default OCR Prompt, Claude Detailed Prompt"
               />
             </div>
-
             <div className="space-y-1.5">
               <Label className="text-xs">Prompt Text</Label>
               <Textarea
@@ -745,18 +1006,14 @@ function PromptManagement() {
                 className="font-mono text-sm"
               />
             </div>
-
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="is-default"
-                  checked={form.is_default}
-                  onCheckedChange={(v) => setForm({ ...form, is_default: v, model_id: v ? null : form.model_id })}
-                />
-                <Label htmlFor="is-default" className="text-sm">Set as default prompt</Label>
-              </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                id="is-default"
+                checked={form.is_default}
+                onCheckedChange={(v) => setForm({ ...form, is_default: v, model_id: v ? null : form.model_id })}
+              />
+              <Label htmlFor="is-default" className="text-sm">Set as default prompt</Label>
             </div>
-
             {!form.is_default && (
               <div className="space-y-1.5">
                 <Label className="text-xs">Assign to Model (optional)</Label>
@@ -765,14 +1022,12 @@ function PromptManagement() {
                   onValueChange={(v) => setForm({ ...form, model_id: v === "_none" ? null : v })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="No specific model (standalone prompt)" />
+                    <SelectValue placeholder="No specific model" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="_none">No specific model</SelectItem>
                     {models.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
-                        {m.icon} {m.display_name}
-                      </SelectItem>
+                      <SelectItem key={m.id} value={m.id}>{m.icon} {m.display_name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -782,11 +1037,8 @@ function PromptManagement() {
               </div>
             )}
           </div>
-
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              Cancel
-            </Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
             <Button onClick={handleSubmit} disabled={submitting || !form.name || !form.prompt_text}>
               {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               {editingId ? "Update" : "Create"}

@@ -4,12 +4,11 @@ from app.models.database import init_db, async_session, OcrModel, ProviderSettin
 from sqlalchemy import select
 
 SEED_PROVIDERS = [
-    {"id": "claude", "display_name": "Anthropic Claude"},
-    {"id": "openai", "display_name": "OpenAI"},
-    {"id": "gemini", "display_name": "Google Gemini"},
-    {"id": "mistral", "display_name": "Mistral AI"},
-    {"id": "ollama", "display_name": "Ollama (Local)", "base_url": "http://localhost:11434"},
-    {"id": "custom", "display_name": "Custom (OpenAI-compatible)"},
+    {"id": "claude", "display_name": "Anthropic Claude", "provider_type": "claude"},
+    {"id": "openai", "display_name": "OpenAI", "provider_type": "openai"},
+    {"id": "gemini", "display_name": "Google Gemini", "provider_type": "gemini"},
+    {"id": "mistral", "display_name": "Mistral AI", "provider_type": "mistral"},
+    {"id": "ollama", "display_name": "Ollama (Local)", "provider_type": "ollama", "base_url": "http://localhost:11434"},
 ]
 
 SEED_MODELS = [
@@ -20,6 +19,7 @@ SEED_MODELS = [
         "provider": "claude",
         "model_id": "claude-sonnet-4-20250514",
         "icon": "🟠",
+        "is_active": False,
     },
     {
         "id": "claude-haiku",
@@ -28,6 +28,7 @@ SEED_MODELS = [
         "provider": "claude",
         "model_id": "claude-haiku-4-5-20251001",
         "icon": "🟡",
+        "is_active": False,
     },
     {
         "id": "gpt-4o",
@@ -36,6 +37,7 @@ SEED_MODELS = [
         "provider": "openai",
         "model_id": "gpt-4o",
         "icon": "🟢",
+        "is_active": False,
     },
     {
         "id": "gpt-4o-mini",
@@ -44,6 +46,7 @@ SEED_MODELS = [
         "provider": "openai",
         "model_id": "gpt-4o-mini",
         "icon": "🔵",
+        "is_active": False,
     },
     {
         "id": "gemini-2-flash",
@@ -52,6 +55,7 @@ SEED_MODELS = [
         "provider": "gemini",
         "model_id": "gemini-2.0-flash",
         "icon": "🔴",
+        "is_active": False,
     },
     {
         "id": "gemini-2-flash-lite",
@@ -60,6 +64,7 @@ SEED_MODELS = [
         "provider": "gemini",
         "model_id": "gemini-2.0-flash-lite",
         "icon": "🩷",
+        "is_active": False,
     },
     {
         "id": "mistral-small",
@@ -68,6 +73,7 @@ SEED_MODELS = [
         "provider": "mistral",
         "model_id": "mistral-small-latest",
         "icon": "🟣",
+        "is_active": False,
     },
     {
         "id": "llava",

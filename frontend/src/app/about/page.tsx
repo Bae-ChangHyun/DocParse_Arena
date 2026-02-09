@@ -12,13 +12,16 @@ export default function AboutPage() {
           </CardHeader>
           <CardContent className="prose prose-sm dark:prose-invert max-w-none">
             <p>
-              OCR Arena is a blind comparison platform for OCR (Optical Character Recognition) models.
+              OCR Arena is a self-hosted blind comparison platform for OCR (Optical Character Recognition) models,
+              inspired by <a href="https://www.ocrarena.ai" target="_blank" rel="noopener noreferrer" className="underline">ocrarena.ai</a>.
+            </p>
+            <p>
               Upload a document, and two randomly selected AI models will compete to convert it into markdown text.
               You vote for the better result without knowing which model produced it.
             </p>
             <p>
-              This platform helps evaluate and rank OCR capabilities of different AI vision models
-              in a fair, unbiased manner through crowdsourced human evaluation.
+              This project was built to connect your own OCR models and evaluate them with your own datasets
+              in a fair, unbiased manner through blind human evaluation with ELO ranking.
             </p>
           </CardContent>
         </Card>
@@ -62,6 +65,22 @@ export default function AboutPage() {
 
         <Card>
           <CardHeader>
+            <CardTitle>Fair Matchmaking</CardTitle>
+          </CardHeader>
+          <CardContent className="prose prose-sm dark:prose-invert max-w-none">
+            <p>
+              To ensure fair evaluation, model selection uses <strong>weighted random sampling</strong> based on battle count.
+              Models with fewer battles receive higher selection probability, so all models get roughly equal evaluation opportunities.
+            </p>
+            <p>
+              The weight formula is: <code>weight = max_battles - model_battles + 1</code>.
+              A brand-new model will be selected more often until its battle count catches up with others.
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle>Features</CardTitle>
           </CardHeader>
           <CardContent className="prose prose-sm dark:prose-invert max-w-none">
@@ -69,7 +88,9 @@ export default function AboutPage() {
               <li><strong>Battle Mode:</strong> Blind side-by-side comparison of two random models</li>
               <li><strong>Playground:</strong> Test individual models on any document</li>
               <li><strong>Leaderboard:</strong> Global ELO rankings and head-to-head statistics</li>
+              <li><strong>Settings:</strong> Manage providers, models, prompts, and extra API parameters</li>
               <li><strong>Document Support:</strong> PDF, JPEG, PNG, WebP, TIFF, BMP</li>
+              <li><strong>Custom Providers:</strong> Connect any OpenAI-compatible endpoint (vLLM, LiteLLM, etc.)</li>
             </ul>
           </CardContent>
         </Card>

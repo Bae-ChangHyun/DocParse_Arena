@@ -13,6 +13,8 @@ Rules:
 
 
 class OcrProvider(ABC):
+    extra_config: dict = {}
+
     @abstractmethod
     async def process_image(self, image_data: bytes, mime_type: str, prompt: str = "") -> OcrResult:
         """Process an image and return OCR result as markdown text."""
