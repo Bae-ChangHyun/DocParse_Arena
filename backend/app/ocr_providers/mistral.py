@@ -3,13 +3,16 @@ import time
 from mistralai import Mistral
 from app.ocr_providers.base import OcrProvider, OCR_SYSTEM_PROMPT
 from app.models.schemas import OcrResult
-from app.config import get_settings
 
 
 class MistralOcrProvider(OcrProvider):
-    def __init__(self, model_id: str = "mistral-small-latest"):
-        settings = get_settings()
-        self.client = Mistral(api_key=settings.mistral_api_key)
+    def __init__(self, model_id: str = "mistral-small-latest", api_key: str = "", base_url: str = ""):
+        kwargs = {}
+        if api_key:
+            kwargs["api_key"] = api_key
+        if base_url:
+            kwargs["server_url"] = base_url
+        self.client = Mistral(**kwargs)
         self.model_id = model_id
 
     async def process_image(self, image_data: bytes, mime_type: str) -> OcrResult:

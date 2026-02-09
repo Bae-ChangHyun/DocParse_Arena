@@ -3,13 +3,16 @@ import time
 from openai import AsyncOpenAI
 from app.ocr_providers.base import OcrProvider, OCR_SYSTEM_PROMPT
 from app.models.schemas import OcrResult
-from app.config import get_settings
 
 
 class OpenAIOcrProvider(OcrProvider):
-    def __init__(self, model_id: str = "gpt-4o"):
-        settings = get_settings()
-        self.client = AsyncOpenAI(api_key=settings.openai_api_key)
+    def __init__(self, model_id: str = "gpt-4o", api_key: str = "", base_url: str = ""):
+        kwargs = {}
+        if api_key:
+            kwargs["api_key"] = api_key
+        if base_url:
+            kwargs["base_url"] = base_url
+        self.client = AsyncOpenAI(**kwargs)
         self.model_id = model_id
 
     async def process_image(self, image_data: bytes, mime_type: str) -> OcrResult:

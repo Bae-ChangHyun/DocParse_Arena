@@ -1,7 +1,16 @@
-"""Seed the database with initial OCR models."""
+"""Seed the database with initial OCR models and provider settings."""
 import asyncio
-from app.models.database import init_db, async_session, OcrModel
+from app.models.database import init_db, async_session, OcrModel, ProviderSetting
 from sqlalchemy import select
+
+SEED_PROVIDERS = [
+    {"id": "claude", "display_name": "Anthropic Claude"},
+    {"id": "openai", "display_name": "OpenAI"},
+    {"id": "gemini", "display_name": "Google Gemini"},
+    {"id": "mistral", "display_name": "Mistral AI"},
+    {"id": "ollama", "display_name": "Ollama (Local)", "base_url": "http://localhost:11434"},
+    {"id": "custom", "display_name": "Custom (OpenAI-compatible)"},
+]
 
 SEED_MODELS = [
     {
@@ -75,6 +84,19 @@ SEED_MODELS = [
 async def seed():
     await init_db()
     async with async_session() as db:
+        # Seed providers
+        for pdata in SEED_PROVIDERS:
+            existing = await db.execute(
+                select(ProviderSetting).where(ProviderSetting.id == pdata["id"])
+            )
+            if existing.scalar_one_or_none():
+                print(f"  Skipping provider {pdata['id']} (already exists)")
+                continue
+            ps = ProviderSetting(**pdata)
+            db.add(ps)
+            print(f"  Added provider {pdata['id']}")
+
+        # Seed models
         for model_data in SEED_MODELS:
             existing = await db.execute(
                 select(OcrModel).where(OcrModel.id == model_data["id"])
@@ -82,7 +104,6 @@ async def seed():
             if existing.scalar_one_or_none():
                 print(f"  Skipping {model_data['name']} (already exists)")
                 continue
-
             model = OcrModel(**model_data)
             db.add(model)
             print(f"  Added {model_data['name']}")

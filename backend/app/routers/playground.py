@@ -59,7 +59,7 @@ async def playground_ocr(
     }
     mime_type = mime_map.get(ext, "image/png")
 
-    ocr_result = await run_ocr(model, image_data, mime_type)
+    ocr_result = await run_ocr(model, image_data, mime_type, db)
     if ocr_result.error:
         raise HTTPException(status_code=500, detail=ocr_result.error)
 

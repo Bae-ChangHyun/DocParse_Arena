@@ -113,8 +113,8 @@ async def stream_battle(battle_id: str, db: AsyncSession = Depends(get_db)):
 
     async def event_stream():
         tasks = {
-            "a": asyncio.create_task(run_ocr(model_a, image_data, mime_type)),
-            "b": asyncio.create_task(run_ocr(model_b, image_data, mime_type)),
+            "a": asyncio.create_task(run_ocr(model_a, image_data, mime_type, db)),
+            "b": asyncio.create_task(run_ocr(model_b, image_data, mime_type, db)),
         }
 
         for key, label in [("a", "model_a_result"), ("b", "model_b_result")]:

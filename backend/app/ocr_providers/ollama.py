@@ -3,13 +3,11 @@ import time
 import httpx
 from app.ocr_providers.base import OcrProvider, OCR_SYSTEM_PROMPT
 from app.models.schemas import OcrResult
-from app.config import get_settings
 
 
 class OllamaOcrProvider(OcrProvider):
-    def __init__(self, model_id: str = "llava"):
-        settings = get_settings()
-        self.base_url = settings.ollama_base_url
+    def __init__(self, model_id: str = "llava", api_key: str = "", base_url: str = ""):
+        self.base_url = base_url or "http://localhost:11434"
         self.model_id = model_id
 
     async def process_image(self, image_data: bytes, mime_type: str) -> OcrResult:
