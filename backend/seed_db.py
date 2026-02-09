@@ -1,6 +1,6 @@
 """Seed the database with initial OCR models and provider settings."""
 import asyncio
-from app.models.database import init_db, async_session, OcrModel, ProviderSetting
+from app.models.database import init_db, async_session, OcrModel, ProviderSetting, PromptSetting
 from sqlalchemy import select
 
 SEED_PROVIDERS = [
@@ -107,6 +107,31 @@ async def seed():
             model = OcrModel(**model_data)
             db.add(model)
             print(f"  Added {model_data['name']}")
+
+        # Seed default prompt
+        existing_prompt = await db.execute(
+            select(PromptSetting).where(PromptSetting.is_default == True)
+        )
+        if not existing_prompt.scalar_one_or_none():
+            default_prompt = PromptSetting(
+                name="Default OCR Prompt",
+                prompt_text=(
+                    "You are a document OCR assistant. Convert the given document image "
+                    "into well-formatted markdown text.\n"
+                    "Rules:\n"
+                    "- Preserve the document structure (headings, lists, tables, etc.)\n"
+                    "- Use proper markdown syntax\n"
+                    "- For tables, use markdown table format\n"
+                    "- Preserve any special formatting (bold, italic, etc.)\n"
+                    "- For mathematical formulas, use LaTeX notation with $...$ for inline and $$...$$ for display\n"
+                    "- Output only the converted markdown content, no explanations"
+                ),
+                is_default=True,
+            )
+            db.add(default_prompt)
+            print("  Added default prompt")
+        else:
+            print("  Skipping default prompt (already exists)")
 
         await db.commit()
     print("Seed complete!")

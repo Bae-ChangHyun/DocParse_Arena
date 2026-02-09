@@ -283,3 +283,53 @@ export async function resetModelElo(id: string): Promise<OcrModelAdmin> {
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
+
+// ── Prompt API ──────────────────────────────────────────
+
+export interface PromptSetting {
+  id: string;
+  name: string;
+  prompt_text: string;
+  is_default: boolean;
+  model_id: string | null;
+}
+
+export interface PromptSettingCreate {
+  name: string;
+  prompt_text: string;
+  is_default?: boolean;
+  model_id?: string | null;
+}
+
+export async function getPrompts(): Promise<PromptSetting[]> {
+  const res = await fetch(`${API_BASE}/api/admin/prompts`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function createPrompt(data: PromptSettingCreate): Promise<PromptSetting> {
+  const res = await fetch(`${API_BASE}/api/admin/prompts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function updatePrompt(id: string, data: Partial<PromptSettingCreate>): Promise<PromptSetting> {
+  const res = await fetch(`${API_BASE}/api/admin/prompts/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function deletePrompt(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/admin/prompts/${id}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error(await res.text());
+}

@@ -3,6 +3,10 @@
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import rehypeRaw from "rehype-raw";
+import "katex/dist/katex.min.css";
 import { Copy, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -75,7 +79,10 @@ export default function ModelResult({
           <TabsContent value="rendered" className="flex-1 min-h-0 m-0">
             <ScrollArea className="h-full">
               <div className="p-4 prose prose-sm max-w-none dark:prose-invert">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm, remarkMath]}
+                  rehypePlugins={[rehypeKatex, rehypeRaw]}
+                >{text}</ReactMarkdown>
               </div>
             </ScrollArea>
           </TabsContent>

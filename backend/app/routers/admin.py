@@ -3,13 +3,16 @@ from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.database import get_db, OcrModel, ProviderSetting
+from app.models.database import get_db, OcrModel, ProviderSetting, PromptSetting
 from app.models.schemas import (
     OcrModelAdmin,
     OcrModelCreate,
     OcrModelUpdate,
     ProviderSettingOut,
     ProviderSettingUpdate,
+    PromptSettingOut,
+    PromptSettingCreate,
+    PromptSettingUpdate,
 )
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -166,3 +169,79 @@ async def reset_model_elo(model_id: str, db: AsyncSession = Depends(get_db)):
     await db.commit()
     await db.refresh(model)
     return OcrModelAdmin.model_validate(model)
+
+
+# ── Prompt Settings ──────────────────────────────────────────
+
+@router.get("/prompts", response_model=list[PromptSettingOut])
+async def list_prompts(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(PromptSetting))
+    return [PromptSettingOut.model_validate(p) for p in result.scalars().all()]
+
+
+@router.post("/prompts", response_model=PromptSettingOut)
+async def create_prompt(data: PromptSettingCreate, db: AsyncSession = Depends(get_db)):
+    # If setting as default, clear existing defaults
+    if data.is_default:
+        result = await db.execute(select(PromptSetting).where(PromptSetting.is_default == True))
+        for p in result.scalars().all():
+            p.is_default = False
+
+    # If model_id specified, remove existing prompt for that model
+    if data.model_id:
+        result = await db.execute(
+            select(PromptSetting).where(PromptSetting.model_id == data.model_id)
+        )
+        existing = result.scalar_one_or_none()
+        if existing:
+            await db.delete(existing)
+
+    prompt = PromptSetting(
+        name=data.name,
+        prompt_text=data.prompt_text,
+        is_default=data.is_default,
+        model_id=data.model_id,
+    )
+    db.add(prompt)
+    await db.commit()
+    await db.refresh(prompt)
+    return PromptSettingOut.model_validate(prompt)
+
+
+@router.put("/prompts/{prompt_id}", response_model=PromptSettingOut)
+async def update_prompt(
+    prompt_id: str,
+    data: PromptSettingUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(PromptSetting).where(PromptSetting.id == prompt_id))
+    prompt = result.scalar_one_or_none()
+    if not prompt:
+        raise HTTPException(status_code=404, detail="Prompt not found")
+
+    if data.is_default:
+        # Clear other defaults
+        result = await db.execute(
+            select(PromptSetting).where(PromptSetting.is_default == True, PromptSetting.id != prompt_id)
+        )
+        for p in result.scalars().all():
+            p.is_default = False
+
+    for field, value in data.model_dump(exclude_none=True).items():
+        setattr(prompt, field, value)
+
+    await db.commit()
+    await db.refresh(prompt)
+    return PromptSettingOut.model_validate(prompt)
+
+
+@router.delete("/prompts/{prompt_id}")
+async def delete_prompt(prompt_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(PromptSetting).where(PromptSetting.id == prompt_id))
+    prompt = result.scalar_one_or_none()
+    if not prompt:
+        raise HTTPException(status_code=404, detail="Prompt not found")
+
+    await db.delete(prompt)
+    await db.commit()
+    return {"ok": True}
