@@ -1,4 +1,5 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+// API requests go through Next.js route handler (/api/[...path]) which proxies to backend
+const API_BASE = "";
 
 // ── Admin Token Management ──────────────────────────────────
 const TOKEN_KEY = "admin_token";
@@ -154,12 +155,35 @@ export async function startBattle(file?: File, documentName?: string): Promise<B
 export function streamBattle(battleId: string, onEvent: (event: string, data: unknown) => void): EventSource {
   const es = new EventSource(`${API_BASE}/api/battle/${battleId}/stream`);
 
+  // Streaming token events (live battles)
+  es.addEventListener("model_a_token", (e) => {
+    onEvent("model_a_token", JSON.parse(e.data));
+  });
+  es.addEventListener("model_b_token", (e) => {
+    onEvent("model_b_token", JSON.parse(e.data));
+  });
+  es.addEventListener("model_a_done", (e) => {
+    onEvent("model_a_done", JSON.parse(e.data));
+  });
+  es.addEventListener("model_b_done", (e) => {
+    onEvent("model_b_done", JSON.parse(e.data));
+  });
+
+  es.addEventListener("model_a_replace", (e) => {
+    onEvent("model_a_replace", JSON.parse(e.data));
+  });
+  es.addEventListener("model_b_replace", (e) => {
+    onEvent("model_b_replace", JSON.parse(e.data));
+  });
+
+  // Cached battle events (backward compat — full result in one shot)
   es.addEventListener("model_a_result", (e) => {
     onEvent("model_a_result", JSON.parse(e.data));
   });
   es.addEventListener("model_b_result", (e) => {
     onEvent("model_b_result", JSON.parse(e.data));
   });
+
   es.addEventListener("done", () => {
     onEvent("done", {});
     es.close();
