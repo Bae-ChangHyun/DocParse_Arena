@@ -1,13 +1,29 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Upload } from "lucide-react";
+import { Upload, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import ModelSelector from "@/components/playground/ModelSelector";
 import SampleDocuments from "@/components/playground/SampleDocuments";
 import PlaygroundResult from "@/components/playground/PlaygroundResult";
-import { getModels, runPlaygroundOcr, type OcrModel, type PlaygroundResponse } from "@/lib/api";
+import {
+  getModels,
+  runPlaygroundOcr,
+  getResolvedPrompt,
+  type OcrModel,
+  type PlaygroundResponse,
+} from "@/lib/api";
+
+const SOURCE_LABELS: Record<string, { label: string; variant: "default" | "secondary" | "outline" }> = {
+  model: { label: "Model-specific", variant: "default" },
+  default: { label: "Default", variant: "secondary" },
+  builtin: { label: "Built-in", variant: "outline" },
+};
 
 export default function PlaygroundPage() {
   const [models, setModels] = useState<OcrModel[]>([]);
@@ -19,12 +35,34 @@ export default function PlaygroundPage() {
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Prompt & Temperature state
+  const [prompt, setPrompt] = useState("");
+  const [promptSource, setPromptSource] = useState<string>("builtin");
+  const [loadingPrompt, setLoadingPrompt] = useState(false);
+  const [temperature, setTemperature] = useState<string>("");
+
   useEffect(() => {
     getModels().then((m) => {
       setModels(m);
       if (m.length > 0) setSelectedModel(m[0].id);
     });
   }, []);
+
+  // Fetch resolved prompt when model changes
+  useEffect(() => {
+    if (!selectedModel) return;
+    setLoadingPrompt(true);
+    getResolvedPrompt(selectedModel)
+      .then((data) => {
+        setPrompt(data.prompt);
+        setPromptSource(data.source);
+      })
+      .catch(() => {
+        setPrompt("");
+        setPromptSource("builtin");
+      })
+      .finally(() => setLoadingPrompt(false));
+  }, [selectedModel]);
 
   const handleRun = async () => {
     if (!selectedModel) return;
@@ -35,10 +73,13 @@ export default function PlaygroundPage() {
     setResult(null);
 
     try {
+      const tempValue = temperature !== "" ? parseFloat(temperature) : undefined;
       const res = await runPlaygroundOcr(
         selectedModel,
         uploadedFile || undefined,
-        !uploadedFile ? selectedDoc || undefined : undefined
+        !uploadedFile ? selectedDoc || undefined : undefined,
+        prompt || undefined,
+        tempValue,
       );
       setResult(res);
     } catch (e) {
@@ -48,12 +89,14 @@ export default function PlaygroundPage() {
     }
   };
 
+  const sourceInfo = SOURCE_LABELS[promptSource] || SOURCE_LABELS.builtin;
+
   return (
     <div className="container mx-auto px-4 py-8 max-w-6xl">
       <div className="mb-6">
         <h1 className="text-2xl font-bold">Playground</h1>
         <p className="text-muted-foreground mt-1">
-          Test individual OCR models on any document
+          Test individual parsing models on any document
         </p>
       </div>
 
@@ -70,6 +113,45 @@ export default function PlaygroundPage() {
                 onSelect={setSelectedModel}
                 label="OCR Model"
               />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base">Parameters</CardTitle>
+                {loadingPrompt && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Prompt</Label>
+                  <Badge variant={sourceInfo.variant} className="text-[10px]">
+                    {sourceInfo.label}
+                  </Badge>
+                </div>
+                <Textarea
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  placeholder="OCR prompt..."
+                  rows={5}
+                  className="font-mono text-xs resize-y"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Temperature</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={2}
+                  step={0.1}
+                  value={temperature}
+                  onChange={(e) => setTemperature(e.target.value)}
+                  placeholder="default"
+                  className="font-mono text-sm"
+                />
+              </div>
             </CardContent>
           </Card>
 

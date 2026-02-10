@@ -92,7 +92,14 @@ async def select_random_models(db: AsyncSession, count: int = 2) -> list[OcrMode
     return [first, second]
 
 
-async def run_ocr(model: OcrModel, image_data: bytes, mime_type: str, db: AsyncSession | None = None) -> OcrResult:
+async def run_ocr(
+    model: OcrModel,
+    image_data: bytes,
+    mime_type: str,
+    db: AsyncSession | None = None,
+    prompt_override: str | None = None,
+    temperature_override: float | None = None,
+) -> OcrResult:
     api_key = model.api_key or ""
     base_url = model.base_url or ""
     provider_type = model.provider
@@ -102,7 +109,13 @@ async def run_ocr(model: OcrModel, image_data: bytes, mime_type: str, db: AsyncS
         api_key, base_url, provider_type = await _resolve_credentials(db, model)
         prompt = await _resolve_prompt(db, model)
 
-    extra_config = model.config if isinstance(model.config, dict) else {}
+    if prompt_override is not None:
+        prompt = prompt_override
+
+    extra_config = dict(model.config) if isinstance(model.config, dict) else {}
+    if temperature_override is not None:
+        extra_config["temperature"] = temperature_override
+
     provider = get_provider(provider_type, model.model_id, api_key, base_url, extra_config)
 
     # Handle PDF: split into pages, OCR each, merge

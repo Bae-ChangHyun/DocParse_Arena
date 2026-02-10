@@ -19,6 +19,10 @@ import {
   createPrompt,
   updatePrompt,
   deletePrompt,
+  getAuthStatus,
+  adminLogin,
+  setAdminToken,
+  clearAdminToken,
   type ProviderSetting,
   type OcrModelAdmin,
   type OcrModelCreate,
@@ -72,6 +76,7 @@ import {
   WifiOff,
   Zap,
   X,
+  Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -1050,49 +1055,130 @@ function PromptManagement() {
   );
 }
 
+// ── Auth Gate ────────────────────────────
+
+function AuthGate({ children }: { children: React.ReactNode }) {
+  const [checking, setChecking] = useState(true);
+  const [authRequired, setAuthRequired] = useState(false);
+  const [authenticated, setAuthenticated] = useState(false);
+  const [password, setPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [loggingIn, setLoggingIn] = useState(false);
+
+  useEffect(() => {
+    getAuthStatus()
+      .then(({ auth_required }) => {
+        setAuthRequired(auth_required);
+        if (!auth_required) setAuthenticated(true);
+      })
+      .catch(console.error)
+      .finally(() => setChecking(false));
+  }, []);
+
+  const handleLogin = async () => {
+    setLoggingIn(true);
+    setLoginError("");
+    try {
+      const { token } = await adminLogin(password);
+      setAdminToken(token);
+      setAuthenticated(true);
+    } catch {
+      setLoginError("Invalid password");
+    }
+    setLoggingIn(false);
+  };
+
+  if (checking) {
+    return (
+      <div className="container mx-auto px-4 py-20 max-w-md text-center">
+        <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (authRequired && !authenticated) {
+    return (
+      <div className="container mx-auto px-4 py-20 max-w-md">
+        <Card>
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-2 h-12 w-12 rounded-full bg-muted flex items-center justify-center">
+              <Lock className="h-6 w-6 text-muted-foreground" />
+            </div>
+            <CardTitle>Admin Authentication</CardTitle>
+            <CardDescription>Enter the admin password to access settings</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+                autoFocus
+              />
+              {loginError && (
+                <p className="text-sm text-destructive">{loginError}</p>
+              )}
+            </div>
+            <Button className="w-full" onClick={handleLogin} disabled={loggingIn || !password}>
+              {loggingIn ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Sign In
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+}
+
 // ── Main Settings Page with Sidebar ────────────────────────────
 
 export default function SettingsPage() {
   const [activeSection, setActiveSection] = useState<SettingsSection>("providers");
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">Settings</h1>
-        <p className="text-muted-foreground mt-1">
-          Manage API providers, OCR models, and prompts
-        </p>
-      </div>
+    <AuthGate>
+      <div className="container mx-auto px-4 py-8 max-w-6xl">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold">Settings</h1>
+          <p className="text-muted-foreground mt-1">
+            Manage API providers, OCR models, and prompts
+          </p>
+        </div>
 
-      <div className="flex gap-6">
-        {/* Sidebar */}
-        <nav className="w-48 shrink-0">
-          <div className="sticky top-20 space-y-1">
-            {SIDEBAR_ITEMS.map((item) => (
-              <button
-                key={item.key}
-                onClick={() => setActiveSection(item.key)}
-                className={cn(
-                  "w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors text-left",
-                  activeSection === item.key
-                    ? "bg-primary text-primary-foreground font-medium"
-                    : "hover:bg-muted text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {item.icon}
-                {item.label}
-              </button>
-            ))}
+        <div className="flex gap-6">
+          {/* Sidebar */}
+          <nav className="w-48 shrink-0">
+            <div className="sticky top-20 space-y-1">
+              {SIDEBAR_ITEMS.map((item) => (
+                <button
+                  key={item.key}
+                  onClick={() => setActiveSection(item.key)}
+                  className={cn(
+                    "w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors text-left",
+                    activeSection === item.key
+                      ? "bg-primary text-primary-foreground font-medium"
+                      : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {item.icon}
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </nav>
+
+          {/* Content */}
+          <div className="flex-1 min-w-0">
+            {activeSection === "providers" && <ProviderSettings />}
+            {activeSection === "models" && <ModelManagement />}
+            {activeSection === "prompts" && <PromptManagement />}
           </div>
-        </nav>
-
-        {/* Content */}
-        <div className="flex-1 min-w-0">
-          {activeSection === "providers" && <ProviderSettings />}
-          {activeSection === "models" && <ModelManagement />}
-          {activeSection === "prompts" && <PromptManagement />}
         </div>
       </div>
-    </div>
+    </AuthGate>
   );
 }

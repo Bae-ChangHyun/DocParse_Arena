@@ -15,9 +15,33 @@ from app.models.schemas import (
     PromptSettingOut,
     PromptSettingCreate,
     PromptSettingUpdate,
+    AdminLoginRequest,
 )
+from app.config import get_settings
+from app.auth import require_admin, create_token
 
-router = APIRouter(prefix="/api/admin", tags=["admin"])
+# Public router: no auth required
+public_router = APIRouter(prefix="/api/admin", tags=["admin"])
+
+# Protected router: requires admin auth
+router = APIRouter(prefix="/api/admin", tags=["admin"], dependencies=[Depends(require_admin)])
+
+@public_router.get("/auth-status")
+async def auth_status():
+    settings = get_settings()
+    return {"auth_required": bool(settings.admin_password)}
+
+
+@public_router.post("/login")
+async def admin_login(data: AdminLoginRequest):
+    settings = get_settings()
+    if not settings.admin_password:
+        return {"token": ""}
+    if data.password != settings.admin_password:
+        raise HTTPException(status_code=401, detail="Invalid password")
+    token = create_token()
+    return {"token": token}
+
 
 BUILTIN_PROVIDERS = [
     {"id": "claude", "display_name": "Anthropic Claude", "provider_type": "claude"},

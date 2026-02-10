@@ -1,5 +1,57 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+// ── Admin Token Management ──────────────────────────────────
+const TOKEN_KEY = "admin_token";
+
+export function getAdminToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return sessionStorage.getItem(TOKEN_KEY);
+}
+
+export function setAdminToken(token: string): void {
+  sessionStorage.setItem(TOKEN_KEY, token);
+}
+
+export function clearAdminToken(): void {
+  sessionStorage.removeItem(TOKEN_KEY);
+}
+
+function adminHeaders(): Record<string, string> {
+  const token = getAdminToken();
+  if (token) return { Authorization: `Bearer ${token}` };
+  return {};
+}
+
+async function adminFetch(url: string, init?: RequestInit): Promise<Response> {
+  const res = await fetch(url, {
+    ...init,
+    headers: { ...adminHeaders(), ...init?.headers },
+  });
+  if (res.status === 401) {
+    clearAdminToken();
+  }
+  return res;
+}
+
+// ── Auth API ──────────────────────────────────────────
+export async function getAuthStatus(): Promise<{ auth_required: boolean }> {
+  const res = await fetch(`${API_BASE}/api/admin/auth-status`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function adminLogin(password: string): Promise<{ token: string }> {
+  const res = await fetch(`${API_BASE}/api/admin/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ password }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+// ── Interfaces ──────────────────────────────────────────
+
 export interface OcrModel {
   id: string;
   name: string;
@@ -68,6 +120,14 @@ export interface PlaygroundResponse {
   result: string;
   latency_ms: number;
 }
+
+export interface ResolvedPrompt {
+  prompt: string;
+  source: "model" | "default" | "builtin";
+  default_prompt: string;
+}
+
+// ── Public API ──────────────────────────────────────────
 
 export async function startBattle(file?: File, documentName?: string): Promise<BattleStartResponse> {
   const formData = new FormData();
@@ -156,7 +216,19 @@ export async function getModels(): Promise<OcrModel[]> {
   return res.json();
 }
 
-export async function runPlaygroundOcr(modelId: string, file?: File, documentName?: string): Promise<PlaygroundResponse> {
+export async function getResolvedPrompt(modelId: string): Promise<ResolvedPrompt> {
+  const res = await fetch(`${API_BASE}/api/playground/prompt/${modelId}`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function runPlaygroundOcr(
+  modelId: string,
+  file?: File,
+  documentName?: string,
+  prompt?: string,
+  temperature?: number,
+): Promise<PlaygroundResponse> {
   const formData = new FormData();
   formData.append("model_id", modelId);
   if (file) {
@@ -164,6 +236,12 @@ export async function runPlaygroundOcr(modelId: string, file?: File, documentNam
   }
   if (documentName) {
     formData.append("document_name", documentName);
+  }
+  if (prompt !== undefined && prompt !== null) {
+    formData.append("prompt", prompt);
+  }
+  if (temperature !== undefined && temperature !== null) {
+    formData.append("temperature", String(temperature));
   }
   const res = await fetch(`${API_BASE}/api/playground/ocr`, {
     method: "POST",
@@ -249,13 +327,13 @@ export interface OcrModelCreate {
 }
 
 export async function getProviders(): Promise<ProviderSetting[]> {
-  const res = await fetch(`${API_BASE}/api/admin/providers`);
+  const res = await adminFetch(`${API_BASE}/api/admin/providers`);
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
 export async function createProvider(data: ProviderSettingCreate): Promise<ProviderSetting> {
-  const res = await fetch(`${API_BASE}/api/admin/providers`, {
+  const res = await adminFetch(`${API_BASE}/api/admin/providers`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -265,7 +343,7 @@ export async function createProvider(data: ProviderSettingCreate): Promise<Provi
 }
 
 export async function updateProvider(id: string, data: Partial<ProviderSetting>): Promise<ProviderSetting> {
-  const res = await fetch(`${API_BASE}/api/admin/providers/${id}`, {
+  const res = await adminFetch(`${API_BASE}/api/admin/providers/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -275,14 +353,14 @@ export async function updateProvider(id: string, data: Partial<ProviderSetting>)
 }
 
 export async function deleteProvider(id: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/admin/providers/${id}`, {
+  const res = await adminFetch(`${API_BASE}/api/admin/providers/${id}`, {
     method: "DELETE",
   });
   if (!res.ok) throw new Error(await res.text());
 }
 
 export async function testProvider(id: string): Promise<ProviderTestResult> {
-  const res = await fetch(`${API_BASE}/api/admin/providers/${id}/test`, {
+  const res = await adminFetch(`${API_BASE}/api/admin/providers/${id}/test`, {
     method: "POST",
   });
   if (!res.ok) throw new Error(await res.text());
@@ -290,7 +368,7 @@ export async function testProvider(id: string): Promise<ProviderTestResult> {
 }
 
 export async function testAllProviders(): Promise<TestAllResult> {
-  const res = await fetch(`${API_BASE}/api/admin/providers/test-all`, {
+  const res = await adminFetch(`${API_BASE}/api/admin/providers/test-all`, {
     method: "POST",
   });
   if (!res.ok) throw new Error(await res.text());
@@ -298,20 +376,20 @@ export async function testAllProviders(): Promise<TestAllResult> {
 }
 
 export async function getProviderModels(providerId: string): Promise<string[]> {
-  const res = await fetch(`${API_BASE}/api/admin/providers/${providerId}/models`);
+  const res = await adminFetch(`${API_BASE}/api/admin/providers/${providerId}/models`);
   if (!res.ok) return [];
   const data = await res.json();
   return data.models || [];
 }
 
 export async function getAdminModels(): Promise<OcrModelAdmin[]> {
-  const res = await fetch(`${API_BASE}/api/admin/models`);
+  const res = await adminFetch(`${API_BASE}/api/admin/models`);
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
 export async function createModel(data: OcrModelCreate): Promise<OcrModelAdmin> {
-  const res = await fetch(`${API_BASE}/api/admin/models`, {
+  const res = await adminFetch(`${API_BASE}/api/admin/models`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -321,7 +399,7 @@ export async function createModel(data: OcrModelCreate): Promise<OcrModelAdmin> 
 }
 
 export async function updateModel(id: string, data: Partial<OcrModelCreate>): Promise<OcrModelAdmin> {
-  const res = await fetch(`${API_BASE}/api/admin/models/${id}`, {
+  const res = await adminFetch(`${API_BASE}/api/admin/models/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -331,7 +409,7 @@ export async function updateModel(id: string, data: Partial<OcrModelCreate>): Pr
 }
 
 export async function toggleModel(id: string): Promise<OcrModelAdmin> {
-  const res = await fetch(`${API_BASE}/api/admin/models/${id}/toggle`, {
+  const res = await adminFetch(`${API_BASE}/api/admin/models/${id}/toggle`, {
     method: "PATCH",
   });
   if (!res.ok) throw new Error(await res.text());
@@ -339,14 +417,14 @@ export async function toggleModel(id: string): Promise<OcrModelAdmin> {
 }
 
 export async function deleteModel(id: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/admin/models/${id}`, {
+  const res = await adminFetch(`${API_BASE}/api/admin/models/${id}`, {
     method: "DELETE",
   });
   if (!res.ok) throw new Error(await res.text());
 }
 
 export async function resetModelElo(id: string): Promise<OcrModelAdmin> {
-  const res = await fetch(`${API_BASE}/api/admin/models/${id}/reset-elo`, {
+  const res = await adminFetch(`${API_BASE}/api/admin/models/${id}/reset-elo`, {
     method: "POST",
   });
   if (!res.ok) throw new Error(await res.text());
@@ -371,13 +449,13 @@ export interface PromptSettingCreate {
 }
 
 export async function getPrompts(): Promise<PromptSetting[]> {
-  const res = await fetch(`${API_BASE}/api/admin/prompts`);
+  const res = await adminFetch(`${API_BASE}/api/admin/prompts`);
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
 export async function createPrompt(data: PromptSettingCreate): Promise<PromptSetting> {
-  const res = await fetch(`${API_BASE}/api/admin/prompts`, {
+  const res = await adminFetch(`${API_BASE}/api/admin/prompts`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -387,7 +465,7 @@ export async function createPrompt(data: PromptSettingCreate): Promise<PromptSet
 }
 
 export async function updatePrompt(id: string, data: Partial<PromptSettingCreate>): Promise<PromptSetting> {
-  const res = await fetch(`${API_BASE}/api/admin/prompts/${id}`, {
+  const res = await adminFetch(`${API_BASE}/api/admin/prompts/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -397,7 +475,7 @@ export async function updatePrompt(id: string, data: Partial<PromptSettingCreate
 }
 
 export async function deletePrompt(id: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/admin/prompts/${id}`, {
+  const res = await adminFetch(`${API_BASE}/api/admin/prompts/${id}`, {
     method: "DELETE",
   });
   if (!res.ok) throw new Error(await res.text());
