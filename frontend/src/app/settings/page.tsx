@@ -23,6 +23,8 @@ import {
   adminLogin,
   setAdminToken,
   clearAdminToken,
+  resetBattles,
+  resetAll,
   type ProviderSetting,
   type OcrModelAdmin,
   type OcrModelCreate,
@@ -77,17 +79,19 @@ import {
   Zap,
   X,
   Lock,
+  AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const BUILTIN_IDS = new Set(["claude", "openai", "gemini", "mistral", "ollama"]);
 
-type SettingsSection = "providers" | "models" | "prompts";
+type SettingsSection = "providers" | "models" | "prompts" | "dangerous";
 
-const SIDEBAR_ITEMS: { key: SettingsSection; label: string; icon: React.ReactNode }[] = [
+const SIDEBAR_ITEMS: { key: SettingsSection; label: string; icon: React.ReactNode; className?: string }[] = [
   { key: "providers", label: "API Providers", icon: <KeyRound className="h-4 w-4" /> },
   { key: "models", label: "Models", icon: <Bot className="h-4 w-4" /> },
   { key: "prompts", label: "Prompts", icon: <MessageSquareText className="h-4 w-4" /> },
+  { key: "dangerous", label: "Danger Zone", icon: <AlertTriangle className="h-4 w-4" />, className: "text-destructive" },
 ];
 
 // ── Provider Settings Section ────────────────────────────
@@ -1055,6 +1059,124 @@ function PromptManagement() {
   );
 }
 
+// ── Danger Zone Section ────────────────────────────
+
+function DangerZone() {
+  const [confirmText, setConfirmText] = useState("");
+  const [resetting, setResetting] = useState(false);
+  const [factoryConfirmText, setFactoryConfirmText] = useState("");
+  const [factoryResetting, setFactoryResetting] = useState(false);
+
+  const handleResetBattles = async () => {
+    if (confirmText !== "RESET") return;
+    setResetting(true);
+    try {
+      await resetBattles();
+      setConfirmText("");
+      alert("All battle records have been deleted and ELO ratings reset.");
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Reset failed");
+    }
+    setResetting(false);
+  };
+
+  const handleFactoryReset = async () => {
+    if (factoryConfirmText !== "FACTORY RESET") return;
+    setFactoryResetting(true);
+    try {
+      await resetAll();
+      setFactoryConfirmText("");
+      alert("Factory reset complete. All battles, prompts deleted and ELO reset.");
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Reset failed");
+    }
+    setFactoryResetting(false);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="mb-2">
+        <h2 className="text-lg font-semibold text-destructive">Danger Zone</h2>
+        <p className="text-sm text-muted-foreground">
+          Irreversible operations. Proceed with caution.
+        </p>
+      </div>
+
+      <Card className="border-destructive/30">
+        <CardHeader>
+          <CardTitle className="text-base">Reset Battle Records</CardTitle>
+          <CardDescription>
+            Delete all battle history and reset ELO ratings for all models back to 1500.
+            Models and their configurations will be preserved.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">
+              Type <span className="font-mono font-bold text-foreground">RESET</span> to confirm
+            </Label>
+            <div className="flex gap-2">
+              <Input
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+                placeholder="RESET"
+                className="font-mono max-w-[200px]"
+              />
+              <Button
+                variant="destructive"
+                onClick={handleResetBattles}
+                disabled={confirmText !== "RESET" || resetting}
+              >
+                {resetting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Reset Battles
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-destructive/50">
+        <CardHeader>
+          <CardTitle className="text-base text-destructive">Factory Reset</CardTitle>
+          <CardDescription>
+            Delete all battles, all custom prompts, and reset ELO ratings.
+            Models and provider settings will be preserved, but all statistics and prompts are lost.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+            <div className="flex gap-2">
+              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+              <span>This action cannot be undone. All battle data and custom prompts will be permanently deleted.</span>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">
+              Type <span className="font-mono font-bold text-foreground">FACTORY RESET</span> to confirm
+            </Label>
+            <div className="flex gap-2">
+              <Input
+                value={factoryConfirmText}
+                onChange={(e) => setFactoryConfirmText(e.target.value)}
+                placeholder="FACTORY RESET"
+                className="font-mono max-w-[200px]"
+              />
+              <Button
+                variant="destructive"
+                onClick={handleFactoryReset}
+                disabled={factoryConfirmText !== "FACTORY RESET" || factoryResetting}
+              >
+                {factoryResetting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Factory Reset
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // ── Auth Gate ────────────────────────────
 
 function AuthGate({ children }: { children: React.ReactNode }) {
@@ -1160,8 +1282,10 @@ export default function SettingsPage() {
                   className={cn(
                     "w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors text-left",
                     activeSection === item.key
-                      ? "bg-primary text-primary-foreground font-medium"
-                      : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                      ? item.key === "dangerous"
+                        ? "bg-destructive text-destructive-foreground font-medium"
+                        : "bg-primary text-primary-foreground font-medium"
+                      : item.className || "hover:bg-muted text-muted-foreground hover:text-foreground"
                   )}
                 >
                   {item.icon}
@@ -1176,6 +1300,7 @@ export default function SettingsPage() {
             {activeSection === "providers" && <ProviderSettings />}
             {activeSection === "models" && <ModelManagement />}
             {activeSection === "prompts" && <PromptManagement />}
+            {activeSection === "dangerous" && <DangerZone />}
           </div>
         </div>
       </div>

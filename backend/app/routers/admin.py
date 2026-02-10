@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.database import get_db, OcrModel, ProviderSetting, PromptSetting
+from app.models.database import get_db, OcrModel, ProviderSetting, PromptSetting, Battle
 from app.models.schemas import (
     OcrModelAdmin,
     OcrModelCreate,
@@ -601,3 +601,40 @@ async def delete_prompt(prompt_id: str, db: AsyncSession = Depends(get_db)):
     await db.delete(prompt)
     await db.commit()
     return {"ok": True}
+
+
+# ── Dangerous Operations ──────────────────────────────────────────
+
+@router.delete("/reset-battles")
+async def reset_battles(db: AsyncSession = Depends(get_db)):
+    """Delete all battle records and reset ELO for all models."""
+    await db.execute(delete(Battle))
+
+    result = await db.execute(select(OcrModel))
+    for model in result.scalars().all():
+        model.elo = 1500
+        model.wins = 0
+        model.losses = 0
+        model.total_battles = 0
+        model.avg_latency_ms = 0.0
+
+    await db.commit()
+    return {"ok": True, "message": "All battles deleted and ELO reset"}
+
+
+@router.delete("/reset-all")
+async def reset_all(db: AsyncSession = Depends(get_db)):
+    """Factory reset: delete battles, prompts, and reset ELO."""
+    await db.execute(delete(Battle))
+    await db.execute(delete(PromptSetting))
+
+    result = await db.execute(select(OcrModel))
+    for model in result.scalars().all():
+        model.elo = 1500
+        model.wins = 0
+        model.losses = 0
+        model.total_battles = 0
+        model.avg_latency_ms = 0.0
+
+    await db.commit()
+    return {"ok": True, "message": "Factory reset complete"}

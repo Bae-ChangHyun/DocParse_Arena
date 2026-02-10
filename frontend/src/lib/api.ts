@@ -480,3 +480,21 @@ export async function deletePrompt(id: string): Promise<void> {
   });
   if (!res.ok) throw new Error(await res.text());
 }
+
+// ── Dangerous Operations ──────────────────────────────────
+
+export async function resetBattles(): Promise<{ ok: boolean; message: string }> {
+  const res = await adminFetch(`${API_BASE}/api/admin/reset-battles`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function resetAll(): Promise<{ ok: boolean; message: string }> {
+  const res = await adminFetch(`${API_BASE}/api/admin/reset-all`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
