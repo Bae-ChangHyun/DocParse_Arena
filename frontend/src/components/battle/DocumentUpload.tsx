@@ -45,10 +45,19 @@ export default function DocumentUpload({ onFileSelect, onRandomDoc, isLoading }:
       </div>
 
       <div
-        className="w-full rounded-xl border-2 border-dashed border-primary/20 bg-primary/[0.02] p-8 text-center cursor-pointer hover:border-primary/40 hover:bg-primary/[0.04] transition-all"
+        className="w-full rounded-xl border-2 border-dashed border-primary/20 bg-primary/[0.02] p-8 text-center cursor-pointer hover:border-primary/40 hover:bg-primary/[0.04] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        role="button"
+        tabIndex={0}
+        aria-label="Upload a document by dropping or clicking"
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
         onClick={() => inputRef.current?.click()}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            inputRef.current?.click();
+          }
+        }}
       >
         <div className="h-12 w-12 rounded-full bg-accent mx-auto mb-4 flex items-center justify-center">
           <Upload className="h-5 w-5 text-muted-foreground" />

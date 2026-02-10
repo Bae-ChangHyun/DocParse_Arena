@@ -126,3 +126,18 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* OCR result HTML table styling */
+.prose table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.prose th,
+.prose td {
+  border: 1px solid var(--border);
+  padding: 0.4rem 0.6rem;
+}
+.prose th {
+  background: var(--muted);
+  font-weight: 600;
+}
