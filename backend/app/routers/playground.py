@@ -70,6 +70,8 @@ async def playground_ocr(
         ext = os.path.splitext(file.filename or "")[1].lower()
     elif document_name:
         filepath = os.path.join(settings.sample_docs_dir, document_name)
+        if not os.path.abspath(filepath).startswith(os.path.abspath(settings.sample_docs_dir)):
+            raise HTTPException(status_code=400, detail="Invalid document name")
         if not os.path.exists(filepath):
             raise HTTPException(status_code=404, detail="Document not found")
         async with aiofiles.open(filepath, "rb") as f:
