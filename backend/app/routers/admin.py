@@ -19,6 +19,7 @@ from app.models.schemas import (
 )
 from app.config import get_settings
 from app.auth import require_admin, create_token
+from app.vlm_registry import list_registry, match_registry
 
 # Public router: no auth required
 public_router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -638,3 +639,18 @@ async def reset_all(db: AsyncSession = Depends(get_db)):
 
     await db.commit()
     return {"ok": True, "message": "Factory reset complete"}
+
+
+# ── VLM Registry ──────────────────────────────────────────
+
+@router.get("/registry")
+async def get_registry():
+    """List all known VLM model entries from the registry."""
+    return list_registry()
+
+
+@router.get("/registry/match")
+async def get_registry_match(model_id: str):
+    """Match a model_id against the VLM registry."""
+    result = match_registry(model_id)
+    return result
