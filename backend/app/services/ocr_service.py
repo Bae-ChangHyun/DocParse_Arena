@@ -65,10 +65,17 @@ async def _resolve_prompt(db: AsyncSession, model: OcrModel) -> str:
     return ""
 
 
+# Config keys used internally, must NOT be passed to provider APIs
+_INTERNAL_CONFIG_KEYS = {"postprocessor"}
+
+
 def get_provider(provider_name: str, model_id: str, api_key: str = "", base_url: str = "", extra_config: dict | None = None) -> OcrProvider:
     provider_cls = PROVIDER_MAP.get(provider_name)
     if not provider_cls:
         raise ValueError(f"Unknown provider: {provider_name}")
+    # Strip internal keys that providers don't understand
+    if extra_config:
+        extra_config = {k: v for k, v in extra_config.items() if k not in _INTERNAL_CONFIG_KEYS}
     return provider_cls(model_id=model_id, api_key=api_key, base_url=base_url, extra_config=extra_config)
 
 
@@ -150,8 +157,19 @@ async def _run_ocr_pdf(provider: OcrProvider, pdf_data: bytes, prompt: str) -> O
     if not pages:
         return OcrResult(text="", latency_ms=0, error="PDF has no pages")
 
-    tasks = [provider.process_image(img_bytes, img_mime, prompt) for img_bytes, img_mime in pages]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    # Process first page alone to fail fast on auth/config errors
+    first_result = await provider.process_image(pages[0][0], pages[0][1], prompt)
+    if first_result.error:
+        latency = int((time.time() - start) * 1000)
+        return OcrResult(text="", latency_ms=latency, error=first_result.error)
+
+    # First page succeeded — process remaining pages in parallel
+    if len(pages) > 1:
+        remaining_tasks = [provider.process_image(img_bytes, img_mime, prompt) for img_bytes, img_mime in pages[1:]]
+        remaining_results = await asyncio.gather(*remaining_tasks, return_exceptions=True)
+        results = [first_result, *remaining_results]
+    else:
+        results = [first_result]
 
     merged_parts = []
     errors = []
