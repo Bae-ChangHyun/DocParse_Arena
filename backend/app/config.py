@@ -4,7 +4,7 @@ import os
 
 
 class Settings(BaseSettings):
-    app_name: str = "OCR Arena"
+    app_name: str = "DocParse Arena"
     debug: bool = True
 
     database_url: str = "sqlite+aiosqlite:///./ocr_arena.db"
@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
 
     sample_docs_dir: str = os.path.join(os.path.dirname(os.path.dirname(__file__)), "sample_docs")
+
+    admin_password: str = ""
 
     cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
 

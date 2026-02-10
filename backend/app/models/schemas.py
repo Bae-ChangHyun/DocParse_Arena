@@ -194,6 +194,10 @@ class PromptSettingUpdate(BaseModel):
     model_id: str | None = None
 
 
+class AdminLoginRequest(BaseModel):
+    password: str
+
+
 class OcrResult(BaseModel):
     text: str
     latency_ms: int

@@ -13,7 +13,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="OCR Arena", lifespan=lifespan)
+app = FastAPI(title="DocParse Arena", lifespan=lifespan)
 
 settings = get_settings()
 app.add_middleware(
@@ -24,6 +24,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(admin.public_router)
 app.include_router(battle.router)
 app.include_router(leaderboard.router)
 app.include_router(playground.router)
