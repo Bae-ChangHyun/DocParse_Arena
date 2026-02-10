@@ -3,17 +3,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 export default function AboutPage() {
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <h1 className="text-2xl font-bold mb-6">About OCR Arena</h1>
+      <h1 className="text-2xl font-bold mb-6">About DocParse Arena</h1>
 
       <div className="space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle>What is OCR Arena?</CardTitle>
+            <CardTitle>What is DocParse Arena?</CardTitle>
           </CardHeader>
           <CardContent className="prose prose-sm dark:prose-invert max-w-none">
             <p>
-              OCR Arena is a self-hosted blind comparison platform for OCR (Optical Character Recognition) models,
-              inspired by <a href="https://www.ocrarena.ai" target="_blank" rel="noopener noreferrer" className="underline">ocrarena.ai</a>.
+              DocParse Arena is a self-hosted blind comparison platform for document parsing models,
+              inspired by the arena-style evaluation approach from <a href="https://lmsys.org/blog/2023-05-03-arena/" target="_blank" rel="noopener noreferrer" className="underline">LMSYS Chatbot Arena</a>.
             </p>
             <p>
               Upload a document, and two randomly selected AI models will compete to convert it into markdown text.

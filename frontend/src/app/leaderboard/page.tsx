@@ -10,7 +10,7 @@ export default function LeaderboardPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold">Leaderboard</h1>
         <p className="text-muted-foreground mt-1">
-          OCR model rankings based on ELO rating from blind battles
+          Model rankings based on ELO rating from blind document parsing battles
         </p>
       </div>
 

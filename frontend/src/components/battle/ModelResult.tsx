@@ -41,9 +41,10 @@ export default function ModelResult({
   };
 
   return (
-    <div className="flex flex-col h-full border rounded-lg overflow-hidden">
-      <div className="flex items-center justify-between p-2 border-b bg-muted/30">
+    <div className="flex flex-col h-full border rounded-lg overflow-hidden bg-card">
+      <div className="flex items-center justify-between px-3 py-2 border-b bg-accent/50">
         <div className="flex items-center gap-2">
+          <span className="inline-flex items-center justify-center h-5 w-5 rounded text-[10px] font-bold bg-primary/10 text-primary">{label.slice(-1)}</span>
           <span className="text-sm font-semibold">{modelName || label}</span>
           {latencyMs !== null && (
             <span className="text-xs text-muted-foreground">{(latencyMs / 1000).toFixed(1)}s</span>
