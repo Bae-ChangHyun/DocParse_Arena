@@ -63,6 +63,9 @@ async def get_document(filename: str):
     settings = get_settings()
     filepath = os.path.join(settings.sample_docs_dir, filename)
 
+    if not os.path.abspath(filepath).startswith(os.path.abspath(settings.sample_docs_dir)):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
     if not os.path.exists(filepath):
         raise HTTPException(status_code=404, detail="File not found")
 
@@ -92,8 +95,12 @@ async def upload_document(file: UploadFile = File(...)):
     safe_name = f"{uuid.uuid4().hex}{ext}"
     filepath = os.path.join(settings.sample_docs_dir, safe_name)
 
+    MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MB
+    content = await file.read()
+    if len(content) > MAX_UPLOAD_SIZE:
+        raise HTTPException(status_code=413, detail="File too large (max 50 MB)")
+
     async with aiofiles.open(filepath, "wb") as f:
-        content = await file.read()
         await f.write(content)
 
     return {
