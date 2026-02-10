@@ -1,6 +1,7 @@
 import asyncio
 import random
 import time
+from collections.abc import AsyncGenerator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,7 +14,7 @@ from app.ocr_providers.gemini import GeminiOcrProvider
 from app.ocr_providers.mistral import MistralOcrProvider
 from app.ocr_providers.ollama import OllamaOcrProvider
 from app.ocr_providers.custom import CustomOcrProvider
-from app.services.pdf_service import pdf_to_images
+from app.services.pdf_service import pdf_to_images_async
 from app.services.postprocessors import apply_postprocessor
 
 PROVIDER_MAP = {
@@ -150,7 +151,7 @@ async def _run_ocr_pdf(provider: OcrProvider, pdf_data: bytes, prompt: str) -> O
     """Split PDF into page images, OCR each page in parallel, merge results."""
     start = time.time()
     try:
-        pages = pdf_to_images(pdf_data)
+        pages = await pdf_to_images_async(pdf_data)
     except Exception as e:
         return OcrResult(text="", latency_ms=0, error=f"PDF conversion failed: {e}")
 
@@ -188,3 +189,55 @@ async def _run_ocr_pdf(provider: OcrProvider, pdf_data: bytes, prompt: str) -> O
     error_msg = "; ".join(errors) if errors else None
 
     return OcrResult(text=merged_text, latency_ms=total_latency, error=error_msg)
+
+
+def get_postprocessor_name(model: OcrModel) -> str:
+    """Return the postprocessor name from model config, or empty string."""
+    extra_config = dict(model.config) if isinstance(model.config, dict) else {}
+    return extra_config.get("postprocessor", "")
+
+
+async def run_ocr_stream(
+    model: OcrModel,
+    image_data: bytes,
+    mime_type: str,
+    db: AsyncSession | None = None,
+    prompt_override: str | None = None,
+    temperature_override: float | None = None,
+) -> AsyncGenerator[str, None]:
+    """Yield text chunks as the provider streams tokens.
+
+    Streams for all inputs including PDFs (page-by-page sequential).
+    Postprocessor is NOT applied here — callers handle that separately
+    so raw tokens can be streamed for real-time UX.
+    """
+    api_key = model.api_key or ""
+    base_url = model.base_url or ""
+    provider_type = model.provider
+    prompt = ""
+
+    if db:
+        api_key, base_url, provider_type = await _resolve_credentials(db, model)
+        prompt = await _resolve_prompt(db, model)
+
+    if prompt_override is not None:
+        prompt = prompt_override
+
+    extra_config = dict(model.config) if isinstance(model.config, dict) else {}
+    if temperature_override is not None:
+        extra_config["temperature"] = temperature_override
+
+    provider = get_provider(provider_type, model.model_id, api_key, base_url, extra_config)
+
+    if mime_type == "application/pdf":
+        pages = await pdf_to_images_async(pdf_data=image_data)
+        if not pages:
+            raise RuntimeError("PDF has no pages")
+        for page_idx, (page_bytes, page_mime) in enumerate(pages):
+            if page_idx > 0:
+                yield f"\n\n---\n\n<!-- Page {page_idx + 1} -->\n\n"
+            async for chunk in provider.process_image_stream(page_bytes, page_mime, prompt):
+                yield chunk
+    else:
+        async for chunk in provider.process_image_stream(image_data, mime_type, prompt):
+            yield chunk
