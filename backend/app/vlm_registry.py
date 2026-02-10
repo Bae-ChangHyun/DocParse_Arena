@@ -24,6 +24,8 @@ VLM_REGISTRY: dict[str, dict] = {
         "match_patterns": [
             "deepseek-ocr",
             "deepseek-ai/deepseek-ocr",
+            "deepseek-ai/DeepSeek-OCR",
+            "DeepSeek-OCR",
         ],
     },
 
@@ -40,6 +42,8 @@ VLM_REGISTRY: dict[str, dict] = {
         "match_patterns": [
             "deepseek-ocr-2",
             "deepseek-ai/deepseek-ocr-2",
+            "deepseek-ai/DeepSeek-OCR-2",
+            "DeepSeek-OCR-2",
         ],
     },
 

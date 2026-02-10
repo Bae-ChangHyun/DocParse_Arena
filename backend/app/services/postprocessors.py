@@ -7,14 +7,69 @@ Registry entries reference these by name via the 'postprocessor' field.
 from __future__ import annotations
 
 import json
+import re
+
+# Matches DeepSeek grounding labels: sub_title[[x, y, w, h]]
+_GROUNDING_LABEL_RE = re.compile(
+    r"^(sub_title|text|image|table|title|header|footer|formula|caption)\[\[[\d,\s]+\]\]\s*$",
+    re.MULTILINE,
+)
 
 
 def deepseek_clean(text: str) -> str:
-    """Remove DeepSeek-OCR special tokens and normalize newlines."""
+    """Convert DeepSeek-OCR grounding output to clean Markdown.
+
+    DeepSeek-OCR with <|grounding|> prompt outputs labels like:
+        sub_title[[49, 31, 520, 60]]
+        ## Heading text
+        text[[209, 85, 400, 106]]
+        Some paragraph content
+        table[[49, 217, 949, 287]]
+        <table>...</table>
+
+    This function strips the label lines and special tokens,
+    keeping only the content as clean markdown.
+    """
     text = text.replace("<｜end▁of▁sentence｜>", "")
-    while "\n\n\n" in text:
-        text = text.replace("\n\n\n", "\n\n")
-    return text.strip()
+
+    # Strip markdown code fences
+    stripped = text.strip()
+    if stripped.startswith("```"):
+        stripped = stripped.removeprefix("```markdown").removeprefix("```")
+        if stripped.endswith("```"):
+            stripped = stripped[:-3]
+        text = stripped
+
+    # Check if text contains grounding labels
+    if not _GROUNDING_LABEL_RE.search(text):
+        # No grounding format — just normalize whitespace
+        while "\n\n\n" in text:
+            text = text.replace("\n\n\n", "\n\n")
+        return text.strip()
+
+    # Parse grounding format: strip label lines, keep content
+    lines = text.split("\n")
+    result_lines = []
+    skip_empty_after_label = False
+
+    for line in lines:
+        if _GROUNDING_LABEL_RE.match(line.strip()):
+            # This is a label line — skip it
+            skip_empty_after_label = True
+            continue
+
+        if skip_empty_after_label and line.strip() == "":
+            # Skip empty line right after label
+            skip_empty_after_label = False
+            continue
+
+        skip_empty_after_label = False
+        result_lines.append(line)
+
+    result = "\n".join(result_lines)
+    while "\n\n\n" in result:
+        result = result.replace("\n\n\n", "\n\n")
+    return result.strip()
 
 
 def lighton_clean(text: str) -> str:
