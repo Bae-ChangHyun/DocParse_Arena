@@ -6,12 +6,14 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import rehypeRaw from "rehype-raw";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import "katex/dist/katex.min.css";
 import { Copy, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { PlaygroundResponse } from "@/lib/api";
+import { preprocessOcrText } from "@/lib/markdown-utils";
 
 interface PlaygroundResultProps {
   result: PlaygroundResponse | null;
@@ -65,7 +67,7 @@ export default function PlaygroundResult({ result, isLoading, error }: Playgroun
           <span className="font-medium">{result.model_name}</span>
           <span className="text-xs text-muted-foreground">{(result.latency_ms / 1000).toFixed(1)}s</span>
         </div>
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleCopy}>
+        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleCopy} aria-label="Copy result to clipboard">
           {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
         </Button>
       </div>
@@ -80,8 +82,17 @@ export default function PlaygroundResult({ result, isLoading, error }: Playgroun
             <div className="p-4 prose prose-sm max-w-none dark:prose-invert">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm, remarkMath]}
-                rehypePlugins={[rehypeKatex, rehypeRaw]}
-              >{result.result}</ReactMarkdown>
+                rehypePlugins={[rehypeKatex, rehypeRaw, [rehypeSanitize, {
+                  ...defaultSchema,
+                  tagNames: [...(defaultSchema.tagNames || []), "math", "semantics", "mrow", "mi", "mo", "mn", "msup", "msub", "mfrac", "mover", "munder", "mtable", "mtr", "mtd", "annotation"],
+                  attributes: {
+                    ...defaultSchema.attributes,
+                    "*": [...(defaultSchema.attributes?.["*"] || []), "className", "style"],
+                    span: [...(defaultSchema.attributes?.["span"] || []), "className", "style"],
+                    div: [...(defaultSchema.attributes?.["div"] || []), "className", "style"],
+                  },
+                }]]}
+              >{preprocessOcrText(result.result)}</ReactMarkdown>
             </div>
           </ScrollArea>
         </TabsContent>

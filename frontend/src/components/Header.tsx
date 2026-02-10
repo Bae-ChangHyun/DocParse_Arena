@@ -6,7 +6,7 @@ import { useState } from "react";
 import { FileText, FlaskConical, Trophy, Info, Menu, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 const navItems = [
   { href: "/battle", label: "Battle", icon: FileText },
@@ -57,6 +57,7 @@ export default function Header() {
             </Button>
           </SheetTrigger>
           <SheetContent side="right" className="w-64">
+            <SheetTitle className="sr-only">Navigation</SheetTitle>
             <nav className="flex flex-col gap-2 mt-8">
               {navItems.map((item) => (
                 <Link
