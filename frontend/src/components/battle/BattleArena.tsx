@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import DocumentUpload from "./DocumentUpload";
 import DocumentViewer from "./DocumentViewer";
 import ModelResult from "./ModelResult";
@@ -25,6 +25,10 @@ interface BattleState {
   modelBError: string | null;
   modelALoading: boolean;
   modelBLoading: boolean;
+  modelAStreaming: boolean;
+  modelBStreaming: boolean;
+  modelAStreamText: string;
+  modelBStreamText: string;
   voteResult: VoteResponse | null;
   isStarting: boolean;
   isVoting: boolean;
@@ -42,6 +46,10 @@ const initialState: BattleState = {
   modelBError: null,
   modelALoading: false,
   modelBLoading: false,
+  modelAStreaming: false,
+  modelBStreaming: false,
+  modelAStreamText: "",
+  modelBStreamText: "",
   voteResult: null,
   isStarting: false,
   isVoting: false,
@@ -49,6 +57,13 @@ const initialState: BattleState = {
 
 export default function BattleArena() {
   const [state, setState] = useState<BattleState>(initialState);
+  const eventSourceRef = useRef<EventSource | null>(null);
+
+  useEffect(() => {
+    return () => {
+      eventSourceRef.current?.close();
+    };
+  }, []);
 
   const handleStartBattle = useCallback(async (file?: File, documentName?: string) => {
     setState({ ...initialState, isStarting: true });
@@ -68,24 +83,79 @@ export default function BattleArena() {
         modelBLoading: true,
       }));
 
-      streamBattle(response.battle_id, (event, data: unknown) => {
-        const d = data as { text?: string; latency_ms?: number; error?: string };
-        if (event === "model_a_result") {
-          setState((prev) => ({
-            ...prev,
-            modelAText: d.text || null,
-            modelALatency: d.latency_ms || null,
-            modelAError: d.error || null,
-            modelALoading: false,
-          }));
-        } else if (event === "model_b_result") {
-          setState((prev) => ({
-            ...prev,
-            modelBText: d.text || null,
-            modelBLatency: d.latency_ms || null,
-            modelBError: d.error || null,
-            modelBLoading: false,
-          }));
+      eventSourceRef.current?.close();
+      eventSourceRef.current = streamBattle(response.battle_id, (event, data: unknown) => {
+        const d = data as { text?: string; token?: string; latency_ms?: number; error?: string };
+
+        switch (event) {
+          case "model_a_token":
+            setState((prev) => ({
+              ...prev,
+              modelALoading: false,
+              modelAStreaming: true,
+              modelAStreamText: prev.modelAStreamText + (d.token || ""),
+            }));
+            break;
+          case "model_b_token":
+            setState((prev) => ({
+              ...prev,
+              modelBLoading: false,
+              modelBStreaming: true,
+              modelBStreamText: prev.modelBStreamText + (d.token || ""),
+            }));
+            break;
+          case "model_a_done":
+            setState((prev) => ({
+              ...prev,
+              modelAText: prev.modelAStreamText || null,
+              modelALatency: d.latency_ms || null,
+              modelAError: d.error || null,
+              modelAStreaming: false,
+              modelALoading: false,
+            }));
+            break;
+          case "model_b_done":
+            setState((prev) => ({
+              ...prev,
+              modelBText: prev.modelBStreamText || null,
+              modelBLatency: d.latency_ms || null,
+              modelBError: d.error || null,
+              modelBStreaming: false,
+              modelBLoading: false,
+            }));
+            break;
+          case "model_a_replace":
+            setState((prev) => ({
+              ...prev,
+              modelAStreamText: d.text || prev.modelAStreamText,
+              modelAText: prev.modelAText ? (d.text || prev.modelAText) : prev.modelAText,
+            }));
+            break;
+          case "model_b_replace":
+            setState((prev) => ({
+              ...prev,
+              modelBStreamText: d.text || prev.modelBStreamText,
+              modelBText: prev.modelBText ? (d.text || prev.modelBText) : prev.modelBText,
+            }));
+            break;
+          case "model_a_result":
+            setState((prev) => ({
+              ...prev,
+              modelAText: d.text || null,
+              modelALatency: d.latency_ms || null,
+              modelAError: d.error || null,
+              modelALoading: false,
+            }));
+            break;
+          case "model_b_result":
+            setState((prev) => ({
+              ...prev,
+              modelBText: d.text || null,
+              modelBLatency: d.latency_ms || null,
+              modelBError: d.error || null,
+              modelBLoading: false,
+            }));
+            break;
         }
       });
     } catch {
@@ -128,6 +198,8 @@ export default function BattleArena() {
   }, [state.battleId]);
 
   const handleNewBattle = useCallback(() => {
+    eventSourceRef.current?.close();
+    eventSourceRef.current = null;
     setState(initialState);
   }, []);
 
@@ -143,7 +215,11 @@ export default function BattleArena() {
     );
   }
 
-  const resultsReady = !state.modelALoading && !state.modelBLoading && (state.modelAText || state.modelAError) && (state.modelBText || state.modelBError);
+  const resultsReady =
+    !state.modelALoading && !state.modelBLoading &&
+    !state.modelAStreaming && !state.modelBStreaming &&
+    (state.modelAText || state.modelAError) &&
+    (state.modelBText || state.modelBError);
 
   return (
     <div className="flex flex-col h-[calc(100vh-3.5rem)]">
@@ -164,6 +240,8 @@ export default function BattleArena() {
             text={state.modelAText}
             latencyMs={state.modelALatency}
             isLoading={state.modelALoading}
+            isStreaming={state.modelAStreaming}
+            streamingText={state.modelAStreamText}
             error={state.modelAError}
             modelName={state.voteResult?.model_a.display_name}
             eloChange={state.voteResult?.model_a_elo_change}
@@ -176,6 +254,8 @@ export default function BattleArena() {
             text={state.modelBText}
             latencyMs={state.modelBLatency}
             isLoading={state.modelBLoading}
+            isStreaming={state.modelBStreaming}
+            streamingText={state.modelBStreamText}
             error={state.modelBError}
             modelName={state.voteResult?.model_b.display_name}
             eloChange={state.voteResult?.model_b_elo_change}
