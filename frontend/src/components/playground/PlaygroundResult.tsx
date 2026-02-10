@@ -31,7 +31,7 @@ export default function PlaygroundResult({ result, isLoading, error }: Playgroun
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64 border rounded-lg">
+      <div className="flex items-center justify-center h-[calc(100vh-16rem)] border rounded-lg">
         <div className="flex flex-col items-center gap-2">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           <span className="text-sm text-muted-foreground">Running OCR...</span>
@@ -42,7 +42,7 @@ export default function PlaygroundResult({ result, isLoading, error }: Playgroun
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-64 border rounded-lg">
+      <div className="flex items-center justify-center h-[calc(100vh-16rem)] border rounded-lg">
         <p className="text-sm text-destructive">{error}</p>
       </div>
     );
@@ -50,7 +50,7 @@ export default function PlaygroundResult({ result, isLoading, error }: Playgroun
 
   if (!result) {
     return (
-      <div className="flex items-center justify-center h-64 border rounded-lg">
+      <div className="flex items-center justify-center h-[calc(100vh-16rem)] border rounded-lg">
         <span className="text-sm text-muted-foreground">
           Select a model and document, then click &quot;Run OCR&quot;
         </span>
@@ -76,7 +76,7 @@ export default function PlaygroundResult({ result, isLoading, error }: Playgroun
           <TabsTrigger value="raw">Raw</TabsTrigger>
         </TabsList>
         <TabsContent value="rendered">
-          <ScrollArea className="h-[400px]">
+          <ScrollArea className="h-[calc(100vh-16rem)]">
             <div className="p-4 prose prose-sm max-w-none dark:prose-invert">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm, remarkMath]}
@@ -86,7 +86,7 @@ export default function PlaygroundResult({ result, isLoading, error }: Playgroun
           </ScrollArea>
         </TabsContent>
         <TabsContent value="raw">
-          <ScrollArea className="h-[400px]">
+          <ScrollArea className="h-[calc(100vh-16rem)]">
             <pre className="p-4 text-xs font-mono whitespace-pre-wrap break-words">{result.result}</pre>
           </ScrollArea>
         </TabsContent>
