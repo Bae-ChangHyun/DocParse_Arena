@@ -431,6 +431,30 @@ export async function resetModelElo(id: string): Promise<OcrModelAdmin> {
   return res.json();
 }
 
+// ── VLM Registry API ──────────────────────────────────────
+
+export interface RegistryEntry {
+  key: string;
+  display_name: string;
+  recommended_prompt: string;
+  postprocessor: string | null;
+  notes: string;
+  recommended_config: Record<string, unknown>;
+}
+
+export async function getRegistry(): Promise<RegistryEntry[]> {
+  const res = await adminFetch(`${API_BASE}/api/admin/registry`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function matchRegistry(modelId: string): Promise<RegistryEntry | null> {
+  const res = await adminFetch(`${API_BASE}/api/admin/registry/match?model_id=${encodeURIComponent(modelId)}`);
+  if (!res.ok) throw new Error(await res.text());
+  const data = await res.json();
+  return data || null;
+}
+
 // ── Prompt API ──────────────────────────────────────────
 
 export interface PromptSetting {

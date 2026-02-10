@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   getProviders,
   createProvider,
@@ -25,11 +25,13 @@ import {
   clearAdminToken,
   resetBattles,
   resetAll,
+  matchRegistry,
   type ProviderSetting,
   type OcrModelAdmin,
   type OcrModelCreate,
   type PromptSetting,
   type PromptSettingCreate,
+  type RegistryEntry,
 } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -80,6 +82,7 @@ import {
   X,
   Lock,
   AlertTriangle,
+  Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -412,6 +415,10 @@ function ModelManagement() {
   const [submitting, setSubmitting] = useState(false);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
+  const [registryMatch, setRegistryMatch] = useState<RegistryEntry | null>(null);
+  const [useRegistryPrompt, setUseRegistryPrompt] = useState(false);
+  const [useRegistryPostprocessor, setUseRegistryPostprocessor] = useState(false);
+  const registryDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -425,6 +432,38 @@ function ModelManagement() {
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // Debounce registry match check when model_id changes
+  useEffect(() => {
+    if (registryDebounceRef.current) clearTimeout(registryDebounceRef.current);
+    if (!form.model_id || form.model_id.length < 3) {
+      setRegistryMatch(null);
+      return;
+    }
+    registryDebounceRef.current = setTimeout(() => {
+      matchRegistry(form.model_id)
+        .then((entry) => {
+          setRegistryMatch(entry);
+          if (entry) {
+            setUseRegistryPrompt(true);
+            setUseRegistryPostprocessor(!!entry.postprocessor);
+          }
+        })
+        .catch(() => setRegistryMatch(null));
+    }, 400);
+    return () => {
+      if (registryDebounceRef.current) clearTimeout(registryDebounceRef.current);
+    };
+  }, [form.model_id]);
+
+  const applyRegistryConfig = () => {
+    if (!registryMatch) return;
+    const cfg: Record<string, unknown> = { ...(registryMatch.recommended_config || {}) };
+    if (useRegistryPostprocessor && registryMatch.postprocessor) {
+      cfg.postprocessor = registryMatch.postprocessor;
+    }
+    setConfigText(Object.keys(cfg).length > 0 ? JSON.stringify(cfg, null, 2) : "{}");
+  };
 
   const fetchProviderModels = useCallback(async (providerId: string) => {
     if (!providerId) return;
@@ -445,6 +484,9 @@ function ModelManagement() {
     setConfigText("{}");
     setConfigError("");
     setAvailableModels([]);
+    setRegistryMatch(null);
+    setUseRegistryPrompt(false);
+    setUseRegistryPostprocessor(false);
     if (firstProvider) fetchProviderModels(firstProvider);
     setDialogOpen(true);
   };
@@ -465,6 +507,9 @@ function ModelManagement() {
     });
     setConfigText(Object.keys(cfg).length > 0 ? JSON.stringify(cfg, null, 2) : "{}");
     setConfigError("");
+    setRegistryMatch(null);
+    // Pre-set postprocessor toggle based on existing config
+    setUseRegistryPostprocessor(!!cfg.postprocessor);
     setDialogOpen(true);
   };
 
@@ -482,14 +527,40 @@ function ModelManagement() {
       return;
     }
 
+    // Manage postprocessor in config based on registry toggle
+    if (registryMatch?.postprocessor) {
+      if (useRegistryPostprocessor) {
+        parsedConfig.postprocessor = registryMatch.postprocessor;
+      } else {
+        delete parsedConfig.postprocessor;
+      }
+    }
+
     setSubmitting(true);
     try {
       const payload = { ...form, config: parsedConfig };
+      let modelId = editingId;
       if (editingId) {
         await updateModel(editingId, payload);
       } else {
-        await createModel(payload);
+        const created = await createModel(payload);
+        modelId = created.id;
       }
+
+      // Create recommended prompt if user opted in (new model only)
+      if (!editingId && useRegistryPrompt && registryMatch && modelId) {
+        try {
+          await createPrompt({
+            name: `${registryMatch.display_name} (recommended)`,
+            prompt_text: registryMatch.recommended_prompt,
+            is_default: false,
+            model_id: modelId,
+          });
+        } catch {
+          // Non-critical: prompt creation failure shouldn't block model creation
+        }
+      }
+
       setDialogOpen(false);
       await loadData();
     } catch (e) {
@@ -729,6 +800,61 @@ function ModelManagement() {
                   : "The actual model identifier sent to the API"}
               </p>
             </div>
+
+            {registryMatch && (
+              <div className="rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30 p-3 space-y-3">
+                <div className="flex items-center gap-2 text-sm font-medium text-blue-700 dark:text-blue-300">
+                  <Info className="h-4 w-4 shrink-0" />
+                  Registry: {registryMatch.display_name}
+                </div>
+                <p className="text-xs text-blue-600 dark:text-blue-400">
+                  {registryMatch.notes}
+                </p>
+
+                <div className="space-y-2 pt-1">
+                  {!editingId ? (
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="use-registry-prompt"
+                        checked={useRegistryPrompt}
+                        onCheckedChange={setUseRegistryPrompt}
+                      />
+                      <Label htmlFor="use-registry-prompt" className="text-xs text-blue-700 dark:text-blue-300">
+                        Use recommended prompt
+                      </Label>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-blue-600 dark:text-blue-400 italic">
+                      Prompt can be managed in the Prompts tab
+                    </p>
+                  )}
+
+                  {registryMatch.postprocessor && (
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="use-registry-postprocessor"
+                        checked={useRegistryPostprocessor}
+                        onCheckedChange={setUseRegistryPostprocessor}
+                      />
+                      <Label htmlFor="use-registry-postprocessor" className="text-xs text-blue-700 dark:text-blue-300">
+                        Enable post-processing ({registryMatch.postprocessor})
+                      </Label>
+                    </div>
+                  )}
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-xs border-blue-300 dark:border-blue-700"
+                    onClick={applyRegistryConfig}
+                  >
+                    <Zap className="h-3 w-3" />
+                    Apply recommended config
+                  </Button>
+                </div>
+              </div>
+            )}
 
             <div className="border-t pt-3 space-y-3">
               <p className="text-xs font-medium text-muted-foreground">

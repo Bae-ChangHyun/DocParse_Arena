@@ -14,6 +14,7 @@ from app.ocr_providers.mistral import MistralOcrProvider
 from app.ocr_providers.ollama import OllamaOcrProvider
 from app.ocr_providers.custom import CustomOcrProvider
 from app.services.pdf_service import pdf_to_images
+from app.services.postprocessors import apply_postprocessor
 
 PROVIDER_MAP = {
     "claude": ClaudeOcrProvider,
@@ -118,11 +119,24 @@ async def run_ocr(
 
     provider = get_provider(provider_type, model.model_id, api_key, base_url, extra_config)
 
+    # Resolve postprocessor from model config
+    postprocessor_name = extra_config.get("postprocessor", "")
+
     # Handle PDF: split into pages, OCR each, merge
     if mime_type == "application/pdf":
-        return await _run_ocr_pdf(provider, image_data, prompt)
+        result = await _run_ocr_pdf(provider, image_data, prompt)
+    else:
+        result = await provider.process_image(image_data, mime_type, prompt)
 
-    return await provider.process_image(image_data, mime_type, prompt)
+    # Apply post-processing if configured
+    if postprocessor_name and result.text and not result.error:
+        result = OcrResult(
+            text=apply_postprocessor(postprocessor_name, result.text),
+            latency_ms=result.latency_ms,
+            error=result.error,
+        )
+
+    return result
 
 
 async def _run_ocr_pdf(provider: OcrProvider, pdf_data: bytes, prompt: str) -> OcrResult:
