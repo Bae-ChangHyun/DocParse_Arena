@@ -1,0 +1,14 @@
+.git
+.gitignore
+*.md
+docs/
+data/
+.env
+.env.*
+!.env.example
+**/__pycache__
+**/.venv
+**/node_modules
+**/.next
+*.db
+todo.md
