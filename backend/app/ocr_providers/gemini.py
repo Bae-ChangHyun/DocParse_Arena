@@ -1,4 +1,5 @@
 import time
+from collections.abc import AsyncGenerator
 from google import genai
 from google.genai import types
 from app.ocr_providers.base import OcrProvider, DEFAULT_OCR_PROMPT
@@ -14,6 +15,12 @@ class GeminiOcrProvider(OcrProvider):
         self.model_id = model_id
         self.extra_config = extra_config or {}
 
+    def _build_contents(self, image_data: bytes, mime_type: str) -> list:
+        return [
+            types.Part.from_bytes(data=image_data, mime_type=mime_type),
+            "Convert this document to markdown.",
+        ]
+
     async def process_image(self, image_data: bytes, mime_type: str, prompt: str = "") -> OcrResult:
         system_prompt = prompt or DEFAULT_OCR_PROMPT
         start = time.time()
@@ -23,10 +30,7 @@ class GeminiOcrProvider(OcrProvider):
             response = await self.client.aio.models.generate_content(
                 model=self.model_id,
                 config=types.GenerateContentConfig(**config_kwargs),
-                contents=[
-                    types.Part.from_bytes(data=image_data, mime_type=mime_type),
-                    "Convert this document to markdown.",
-                ],
+                contents=self._build_contents(image_data, mime_type),
             )
             latency = int((time.time() - start) * 1000)
             text = response.text or ""
@@ -34,3 +38,17 @@ class GeminiOcrProvider(OcrProvider):
         except Exception as e:
             latency = int((time.time() - start) * 1000)
             return OcrResult(text="", latency_ms=latency, error=str(e))
+
+    async def process_image_stream(
+        self, image_data: bytes, mime_type: str, prompt: str = ""
+    ) -> AsyncGenerator[str, None]:
+        system_prompt = prompt or DEFAULT_OCR_PROMPT
+        config_kwargs = {"system_instruction": system_prompt}
+        config_kwargs.update(self.extra_config)
+        async for chunk in self.client.aio.models.generate_content_stream(
+            model=self.model_id,
+            config=types.GenerateContentConfig(**config_kwargs),
+            contents=self._build_contents(image_data, mime_type),
+        ):
+            if chunk.text:
+                yield chunk.text
