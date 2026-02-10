@@ -61,7 +61,7 @@ class OcrModelCreate(BaseModel):
     api_key: str = ""
     base_url: str = ""
     config: dict = {}
-    is_active: bool = True
+    is_active: bool = False
 
 
 class OcrModelUpdate(BaseModel):
