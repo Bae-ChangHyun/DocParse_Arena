@@ -1,6 +1,6 @@
 "use client";
 
-import { ThumbsUp, Equal, RotateCcw } from "lucide-react";
+import { ChevronLeft, ChevronRight, Equal, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface VoteButtonsProps {
@@ -14,7 +14,7 @@ interface VoteButtonsProps {
 export default function VoteButtons({ onVote, onNewBattle, isVoting, hasVoted, disabled }: VoteButtonsProps) {
   if (hasVoted) {
     return (
-      <div className="flex justify-center p-4">
+      <div className="flex justify-center p-4 border-t bg-card/50">
         <Button onClick={onNewBattle} className="gap-2">
           <RotateCcw className="h-4 w-4" />
           New Battle
@@ -24,33 +24,34 @@ export default function VoteButtons({ onVote, onNewBattle, isVoting, hasVoted, d
   }
 
   return (
-    <div className="flex justify-center items-center gap-3 p-4">
+    <div className="flex justify-center items-center gap-3 p-4 border-t bg-card/50">
       <Button
         onClick={() => onVote("a")}
         disabled={disabled || isVoting}
-        variant="outline"
+        variant="secondary"
         className="gap-2"
       >
-        <ThumbsUp className="h-4 w-4" />
-        Model A is better
+        <ChevronLeft className="h-4 w-4" />
+        A is better
       </Button>
       <Button
         onClick={() => onVote("tie")}
         disabled={disabled || isVoting}
         variant="outline"
-        className="gap-2"
+        size="sm"
+        className="gap-1.5"
       >
-        <Equal className="h-4 w-4" />
+        <Equal className="h-3.5 w-3.5" />
         Tie
       </Button>
       <Button
         onClick={() => onVote("b")}
         disabled={disabled || isVoting}
-        variant="outline"
+        variant="secondary"
         className="gap-2"
       >
-        <ThumbsUp className="h-4 w-4 scale-x-[-1]" />
-        Model B is better
+        B is better
+        <ChevronRight className="h-4 w-4" />
       </Button>
     </div>
   );

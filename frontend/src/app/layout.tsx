@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "OCR Arena",
-  description: "Blind OCR model comparison with ELO ranking",
+  title: "DocParse Arena",
+  description: "Self-hosted blind document parsing model comparison with ELO ranking",
 };
 
 export default function RootLayout({

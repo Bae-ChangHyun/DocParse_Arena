@@ -1,12 +1,12 @@
-# OCR Arena
+# DocParse Arena
 
-OCR 모델 블라인드 테스트 & ELO 랭킹 플랫폼.
+문서 파싱 모델 블라인드 테스트 & ELO 랭킹 플랫폼.
 
-여러 OCR 모델(Claude, GPT, Gemini, Mistral, Ollama, Custom)을 동일한 문서에 대해 블라인드로 비교하고, 투표를 통해 ELO 랭킹을 산출합니다. 자체 API 키와 모델을 연결하여 나만의 OCR 리더보드를 운영할 수 있습니다.
+여러 문서 파싱 모델(Claude, GPT, Gemini, Mistral, Ollama, Custom)을 동일한 문서에 대해 블라인드로 비교하고, 투표를 통해 ELO 랭킹을 산출합니다. 자체 API 키와 모델을 연결하여 나만의 리더보드를 운영할 수 있습니다.
 
 ## Background
 
-이 프로젝트는 [ocrarena.ai](https://www.ocrarena.ai)에서 영감을 받아 제작된 self-hosted 버전입니다. 자체 OCR 모델을 연결하고, 자신만의 private 데이터셋으로 블라인드 테스트와 ELO 랭킹을 통해 모델 성능을 평가할 수 있습니다.
+이 프로젝트는 [LMSYS Chatbot Arena](https://lmsys.org/blog/2023-05-03-arena/)의 arena-style 평가 방식에서 영감을 받아, 문서 파싱(OCR) 도메인에 적용한 self-hosted 플랫폼입니다. 자체 모델을 연결하고, 자신만의 private 데이터셋으로 블라인드 테스트와 ELO 랭킹을 통해 모델 성능을 평가할 수 있습니다.
 
 ## Screenshots
 
@@ -75,8 +75,8 @@ API 키, Base URL 설정 및 연결 테스트. 커스텀 프로바이더(vLLM, L
 ### 1. Clone & Install
 
 ```bash
-git clone https://github.com/Bae-ChangHyun/OCR_Arena.git
-cd OCR_Arena
+git clone https://github.com/Bae-ChangHyun/docparse-arena.git
+cd docparse-arena
 
 # Backend
 cd backend
@@ -177,7 +177,7 @@ weight = max_battles - model_battles + 1
 ## Project Structure
 
 ```
-OCR_Arena/
+docparse-arena/
 ├── backend/
 │   ├── app/
 │   │   ├── main.py              # FastAPI entry

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useRef } from "react";
-import { Upload, Shuffle } from "lucide-react";
+import { Upload, Shuffle, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface DocumentUploadProps {
@@ -31,19 +31,33 @@ export default function DocumentUpload({ onFileSelect, onRandomDoc, isLoading }:
   );
 
   return (
-    <div className="flex flex-col items-center gap-4 p-8">
+    <div className="flex flex-col items-center gap-6 p-8 max-w-lg mx-auto">
+      <div className="text-center mb-2">
+        <div className="flex items-center justify-center gap-2 mb-3">
+          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+            <FileText className="h-5 w-5 text-primary" />
+          </div>
+        </div>
+        <h2 className="text-xl font-semibold">Start a Battle</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Upload a document and two anonymous models will parse it
+        </p>
+      </div>
+
       <div
-        className="w-full max-w-md border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors"
+        className="w-full rounded-xl border-2 border-dashed border-primary/20 bg-primary/[0.02] p-8 text-center cursor-pointer hover:border-primary/40 hover:bg-primary/[0.04] transition-all"
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
         onClick={() => inputRef.current?.click()}
       >
-        <Upload className="h-10 w-10 mx-auto mb-4 text-muted-foreground" />
-        <p className="text-sm text-muted-foreground mb-2">
-          Drag & drop a document here, or click to select
+        <div className="h-12 w-12 rounded-full bg-accent mx-auto mb-4 flex items-center justify-center">
+          <Upload className="h-5 w-5 text-muted-foreground" />
+        </div>
+        <p className="text-sm font-medium mb-1">
+          Drag & drop a document here
         </p>
         <p className="text-xs text-muted-foreground">
-          Supports: PDF, JPEG, PNG, WebP, TIFF, BMP
+          PDF, JPEG, PNG, WebP, TIFF, BMP
         </p>
         <input
           ref={inputRef}
@@ -54,15 +68,15 @@ export default function DocumentUpload({ onFileSelect, onRandomDoc, isLoading }:
         />
       </div>
 
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <div className="h-px w-12 bg-border" />
-        or
-        <div className="h-px w-12 bg-border" />
+      <div className="flex items-center gap-3 w-full text-xs text-muted-foreground">
+        <div className="h-px flex-1 bg-border" />
+        or try a sample
+        <div className="h-px flex-1 bg-border" />
       </div>
 
-      <Button variant="outline" onClick={onRandomDoc} disabled={isLoading} className="gap-2">
+      <Button variant="secondary" onClick={onRandomDoc} disabled={isLoading} className="gap-2">
         <Shuffle className="h-4 w-4" />
-        Get a random document
+        Random Document
       </Button>
     </div>
   );
