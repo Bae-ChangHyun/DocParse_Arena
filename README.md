@@ -4,69 +4,56 @@
 [![Python 3.13+](https://img.shields.io/badge/Python-3.13%2B-blue.svg)](https://www.python.org/downloads/release/python-3130/)
 [![Next.js 15](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-009688.svg)](https://fastapi.tiangolo.com/)
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](https://www.docker.com/)
 
-A blind-test and ELO ranking platform for document parsing (OCR) models.
+A self-hosted, blind-test platform for evaluating document parsing (OCR/VLM) models with ELO rankings.
 
-Compare various document parsing models (Claude, GPT, Gemini, Mistral, Ollama, Custom) on the same document through blind testing and generate ELO rankings based on user votes. Connect your own API keys and models to host your private leaderboard.
+Compare document parsing models side-by-side through blind battles, vote for the better result, and build your own private leaderboard. Supports commercial APIs (Claude, GPT, Gemini, Mistral) and self-hosted models (Ollama, vLLM, any OpenAI-compatible endpoint).
 
-## Inspired by
+## Background
 
-This project is a self-hosted platform inspired by the arena-style evaluation method of [LMSYS Chatbot Arena](https://lmsys.org/blog/2023-05-03-arena/), applied to the document parsing (OCR) domain. Evaluate model performance using your own private datasets and custom model connections.
+While using [OCR Arena](https://www.ocrarena.ai) to compare commercial OCR services, I wanted to go further — evaluating my own self-hosted VLMs (like DeepSeek-OCR, dots.ocr, PaddleOCR-VL) against commercial models on my private documents. Since existing platforms don't support custom model connections, I built DocParse Arena as a self-hosted alternative where you can plug in any model and run fair blind evaluations with your own data.
+
+This project is inspired by the arena-style evaluation method of [LMSYS Chatbot Arena](https://lmsys.org/blog/2023-05-03-arena/), applied to the document parsing domain.
 
 ## Screenshots
 
-### Battle - Blind OCR Comparison
-Upload a document, and two anonymous models perform OCR simultaneously. Compare the results and vote to reveal the model names and update their ELO ratings.
+> **Note:** Screenshots are being updated to reflect the latest UI. Some images may not match the current version.
 
-![Battle Page](docs/screenshots/battle.png)
+| Battle - Blind Comparison | Leaderboard |
+|:---:|:---:|
+| ![Battle](docs/screenshots/battle.png) | ![Leaderboard](docs/screenshots/leaderboard.png) |
+| Two anonymous models parse the same document with real-time token streaming. Vote to reveal model names and update ELO. | ELO ratings, win rates, and head-to-head matchup stats. |
 
-### Leaderboard - ELO Rankings
-View ELO ratings, win rates, and average latency for each model.
+| Playground | Settings |
+|:---:|:---:|
+| ![Playground](docs/screenshots/playground.png) | ![Settings](docs/screenshots/settings-providers.png) |
+| Test individual models with custom prompts and temperature control. | Manage providers, models, prompts, and VLM registry recommendations. |
 
-![Leaderboard](docs/screenshots/leaderboard.png)
+## Key Features
 
-### Playground - Single Model Test
-Select a specific model to test individual OCR results.
-
-![Playground](docs/screenshots/playground.png)
-
-### Settings - Provider Management
-Configure API keys, Base URLs, and perform connection tests. Add multiple custom providers like vLLM or LiteLLM.
-
-![Settings - Providers](docs/screenshots/settings-providers.png)
-
-### Settings - Model Management
-Add or delete models, toggle activation status, and reset ELO ratings.
-
-![Settings - Models](docs/screenshots/settings-models.png)
-
-### Settings - Prompt Management
-Configure global default prompts and model-specific overrides.
-
-![Settings - Prompts](docs/screenshots/settings-prompts.png)
-
-## Features
-
-- **Blind Battle**: Anonymously compare OCR results from two models and vote for the better one.
-- **ELO Ranking**: Rating system based on K-factor 20 for accurate performance tracking.
-- **Fair Matchmaking**: Weighted random selection system (`weight = max_battles - model_battles + 1`) ensures models with fewer evaluations get more opportunities.
-- **Multi-Provider Support**: Integrated support for Anthropic (Claude), OpenAI (GPT), Google (Gemini), Mistral, Ollama, and custom OpenAI-compatible endpoints.
-- **PDF Support**: Automatically splits PDFs into per-page images for parallel OCR processing and result merging.
-- **Markdown Rendering**: Advanced rendering support for Markdown, HTML, and LaTeX (KaTeX).
-- **Prompt Management**: Centralized management of default and model-specific prompt overrides.
-- **Real-time Connection Testing**: Validates provider connectivity through actual API calls (e.g., `GET /v1/models`) rather than simple string validation.
-- **Custom Providers**: Register multiple OpenAI-compatible endpoints such as vLLM, LiteLLM, or LocalAI.
-- **Flexible API Parameters**: Configure model-specific `Extra Kwargs` via JSON (e.g., supporting `max_completion_tokens` for OpenAI o1/o3).
+- **Blind Battle** — Two anonymous models parse the same document. Vote to reveal identities and update rankings.
+- **Real-time Token Streaming** — Watch OCR results appear token-by-token via SSE, rendered with Markdown/LaTeX in real time.
+- **ELO Ranking** — K-factor 20 rating system with head-to-head matchup statistics.
+- **Fair Matchmaking** — Weighted random selection (`weight = max_battles - model_battles + 1`) ensures underrepresented models get more battles.
+- **VLM Registry** — Built-in profiles for self-hosted models (DeepSeek-OCR, dots.ocr, PaddleOCR-VL, Nanonets, etc.) with recommended prompts and post-processors auto-applied on registration.
+- **Multi-Provider Support** — Anthropic, OpenAI, Google Gemini, Mistral, Ollama, and any OpenAI-compatible endpoint (vLLM, LiteLLM, LocalAI).
+- **PDF Support** — Automatic page splitting with parallel OCR and result merging.
+- **Prompt Management** — Global defaults and per-model prompt overrides.
+- **Playground** — Test individual models with adjustable temperature and custom prompts.
+- **Docker Ready** — One-command deployment with `docker compose up`.
+- **Admin Controls** — Provider connection testing, model activation/deactivation, battle reset, and factory reset.
 
 ## Tech Stack
 
-| Component | Technology |
-|-----------|-----------|
+| Layer | Technology |
+|-------|-----------|
 | Frontend | Next.js 15 (App Router), TypeScript, Tailwind CSS, shadcn/ui |
 | Backend | Python 3.13, FastAPI, SQLAlchemy (async), SQLite |
-| OCR Providers | Anthropic, OpenAI, Google GenAI, Mistral, Ollama, Custom |
+| Streaming | SSE (Server-Sent Events), markstream-react |
 | Rendering | react-markdown, remark-gfm, remark-math, rehype-katex, rehype-sanitize |
-| Package Managers | uv (Python), pnpm (Node.js) |
+| Providers | Anthropic, OpenAI, Google Gemini, Mistral, Ollama, Custom (OpenAI-compatible) |
+| Deploy | Docker Compose, uv (Python), pnpm (Node.js) |
 
 ## Quick Start
 
@@ -135,30 +122,23 @@ cd frontend && pnpm dev
 
 ## Configuration
 
-### Model-Specific API Parameters (Extra Kwargs)
-In **Settings > Models > Edit**, you can define `Extra Kwargs` in JSON format. These are passed directly to the provider's API.
+### Environment Variables
+Copy `.env.example` to `.env` and fill in your API keys. You only need keys for the providers you want to use.
+
+### VLM Registry
+When adding a self-hosted model whose ID matches a known pattern (e.g., `deepseek-ocr`, `dots.ocr`, `paddleocr-vl`), the system automatically suggests recommended prompts and post-processing pipelines. These are opt-in — you can accept or customize them.
+
+Currently registered models: DeepSeek-OCR, DeepSeek-OCR-2, dots.ocr, PaddleOCR-VL, LightOnOCR, Nanonets-OCR, GLM-OCR.
+
+### Extra Kwargs
+In **Settings > Models > Edit**, pass additional API parameters as JSON:
 
 ```json
-{
-  "max_completion_tokens": 4096,
-  "temperature": 0.7
-}
+{ "max_completion_tokens": 4096, "temperature": 0.7 }
 ```
-*Note: For Claude models, `max_tokens` is forced to 4096 by default.*
 
 ### Prompt Customization
-Manage prompts in **Settings > Prompts**:
-- **Default Prompt**: Applied to all models.
-- **Model-Specific Prompt**: Overrides the default prompt for a specific model.
-
-### Fair Matchmaking (Weighted Random Selection)
-To ensure all models receive equal evaluation opportunities, the system uses a weighted selection algorithm:
-`weight = max_battles - model_battles + 1`
-
-Models with fewer battles have a higher probability of being selected for the next match.
-
-### Provider Connection Testing
-The "Test Connection" feature performs a real API call (e.g., `GET /v1/models`) to ensure the provider is correctly configured. If a test fails, all associated models are automatically deactivated to prevent errors during battles.
+**Settings > Prompts** supports global defaults and per-model overrides.
 
 ## API Endpoints
 
@@ -183,49 +163,51 @@ docparse-arena/
 │   ├── app/
 │   │   ├── main.py              # FastAPI entry
 │   │   ├── config.py            # Settings
-│   │   ├── models/
-│   │   │   ├── database.py      # SQLAlchemy models
-│   │   │   └── schemas.py       # Pydantic schemas
-│   │   ├── routers/
-│   │   │   ├── battle.py        # Battle API (start/stream/vote)
-│   │   │   ├── leaderboard.py   # Ranking API
-│   │   │   ├── playground.py    # Single model OCR
-│   │   │   ├── documents.py     # Document management
-│   │   │   └── admin.py         # Settings API
-│   │   ├── services/
-│   │   │   ├── ocr_service.py   # OCR orchestration
-│   │   │   ├── elo_service.py   # ELO calculation
-│   │   │   ├── pdf_service.py   # PDF to images
-│   │   │   └── diff_service.py  # Text diff
+│   │   ├── vlm_registry.py      # VLM model registry
+│   │   ├── models/              # SQLAlchemy + Pydantic schemas
+│   │   ├── routers/             # API endpoints
+│   │   ├── services/            # Business logic (OCR, ELO, PDF, streaming)
 │   │   └── ocr_providers/       # Provider implementations
 │   ├── sample_docs/             # Sample documents
-│   ├── seed_db.py               # DB seeding
-│   └── pyproject.toml
+│   └── seed_db.py               # DB seeding
 ├── frontend/
 │   ├── src/
-│   │   ├── app/                 # Next.js pages
+│   │   ├── app/                 # Next.js pages (battle, leaderboard, playground, settings)
 │   │   ├── components/          # React components
-│   │   └── lib/api.ts           # API client
+│   │   └── lib/                 # API client, utilities
 │   └── package.json
-├── run.sh                       # Launcher script
-└── README.md
+├── docker-compose.yml           # One-command deployment
+├── run.sh                       # Dev launcher script
+└── .env.example                 # Environment template
 ```
 
 ## Contributing
 
-We welcome contributions! To contribute:
-1. Fork the repository.
-2. Create a new feature branch (`git checkout -b feature/your-feature`).
-3. Commit your changes.
-4. Push to the branch (`git push origin feature/your-feature`).
-5. Open a Pull Request.
+Contributions are welcome! Here are some ways to get involved:
+
+- **Add a VLM to the registry** — Know a model that works well for document parsing? Add it to `backend/app/vlm_registry.py`.
+- **Add a new provider** — Implement the `OCRProviderBase` interface in `backend/app/ocr_providers/`.
+- **Improve the UI** — Frontend lives in `frontend/src/` with shadcn/ui components.
+- **Report bugs** — Open an [issue](https://github.com/Bae-ChangHyun/docparse-arena/issues).
+
+### Development Workflow
+
+```bash
+# Fork & clone
+git checkout -b feature/your-feature
+# Make changes & test
+git commit -m "feat: your feature description"
+git push origin feature/your-feature
+# Open a Pull Request
+```
 
 ## Security
 
-- **ADMIN_PASSWORD**: Ensure you set a strong `ADMIN_PASSWORD` in your `.env` file to protect the settings and model management UI.
-- **CORS Config**: Configure `CORS_ORIGINS` in your `.env` file to restrict API access if hosting publicly (defaults to `http://localhost:3000`).
-- **API Keys**: API keys are stored in the database. Ensure your database file (`data/ocr_arena.db`) is properly secured and not publicly accessible.
+- Set a strong `ADMIN_PASSWORD` in `.env` to protect the admin UI.
+- Configure `CORS_ORIGINS` to restrict API access when hosting publicly.
+- API keys are stored in the database — keep `data/ocr_arena.db` secured and never commit it.
+- Uploaded files are validated with path traversal guards, size limits, and PDF page caps.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+[MIT License](LICENSE) — free to use, modify, and distribute.

@@ -1118,7 +1118,7 @@ function PromptManagement() {
 
       {/* Add / Edit Prompt Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingId ? "Edit Prompt" : "Add New Prompt"}</DialogTitle>
           </DialogHeader>
@@ -1138,7 +1138,7 @@ function PromptManagement() {
                 onChange={(e) => setForm({ ...form, prompt_text: e.target.value })}
                 placeholder="You are a document OCR assistant..."
                 rows={8}
-                className="font-mono text-sm"
+                className="font-mono text-sm max-h-64 overflow-y-auto"
               />
             </div>
             <div className="flex items-center gap-2">
