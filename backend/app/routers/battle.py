@@ -136,6 +136,7 @@ async def stream_battle(battle_id: str, db: AsyncSession = Depends(get_db)):
                 latency = int((_time.time() - start) * 1000)
                 full_text = "".join(collected)
 
+                # Model-specific post-processing (fences already stripped in stream)
                 pp_name = get_postprocessor_name(model)
                 if pp_name and full_text:
                     processed_text = apply_postprocessor(pp_name, full_text)
