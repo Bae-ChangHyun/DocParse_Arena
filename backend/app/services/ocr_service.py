@@ -16,6 +16,7 @@ from app.ocr_providers.mistral import MistralOcrProvider
 from app.ocr_providers.ollama import OllamaOcrProvider
 from app.ocr_providers.custom import CustomOcrProvider
 from app.services.pdf_service import pdf_to_images_async
+from app.config import get_settings
 from app.services.postprocessors import apply_postprocessor, strip_code_fences
 
 PROVIDER_MAP = {
@@ -133,7 +134,8 @@ async def run_ocr(
 
     # Handle PDF: split into pages, OCR each, merge
     if mime_type == "application/pdf":
-        result = await _run_ocr_pdf(provider, image_data, prompt)
+        settings = get_settings()
+        result = await _run_ocr_pdf(provider, image_data, prompt, settings.pdf_dpi, settings.max_pdf_pages)
     else:
         result = await provider.process_image(image_data, mime_type, prompt)
 
@@ -152,11 +154,14 @@ async def run_ocr(
     return result
 
 
-async def _run_ocr_pdf(provider: OcrProvider, pdf_data: bytes, prompt: str) -> OcrResult:
+async def _run_ocr_pdf(
+    provider: OcrProvider, pdf_data: bytes, prompt: str,
+    dpi: float = 216.0, max_pages: int = 50,
+) -> OcrResult:
     """Split PDF into page images, OCR each page in parallel, merge results."""
     start = time.time()
     try:
-        pages = await pdf_to_images_async(pdf_data)
+        pages = await pdf_to_images_async(pdf_data, dpi=dpi, max_pages=max_pages)
     except Exception as e:
         return OcrResult(text="", latency_ms=0, error=f"PDF conversion failed: {e}")
 
@@ -285,7 +290,10 @@ async def run_ocr_stream(
     provider = get_provider(provider_type, model.model_id, api_key, base_url, extra_config)
 
     if mime_type == "application/pdf":
-        pages = await pdf_to_images_async(pdf_data=image_data)
+        _settings = get_settings()
+        pages = await pdf_to_images_async(
+            pdf_data=image_data, dpi=_settings.pdf_dpi, max_pages=_settings.max_pdf_pages
+        )
         if not pages:
             raise RuntimeError("PDF has no pages")
         for page_idx, (page_bytes, page_mime) in enumerate(pages):

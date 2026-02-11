@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy import String, Integer, Float, Boolean, Text, JSON, ForeignKey, DateTime
-from datetime import datetime
+from sqlalchemy import String, Integer, Float, Boolean, Text, JSON, ForeignKey, DateTime, Index
+from datetime import datetime, timezone
 import uuid
 
 from app.config import get_settings
@@ -50,7 +50,7 @@ class OcrModel(Base):
     total_battles: Mapped[int] = mapped_column(Integer, default=0)
     avg_latency_ms: Mapped[float] = mapped_column(Float, default=0.0)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class Battle(Base):
@@ -66,7 +66,14 @@ class Battle(Base):
     model_b_latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     winner: Mapped[str | None] = mapped_column(String, nullable=True)
     voted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index("ix_battles_model_a_id", "model_a_id"),
+        Index("ix_battles_model_b_id", "model_b_id"),
+        Index("ix_battles_winner", "winner"),
+        Index("ix_battles_models_pair", "model_a_id", "model_b_id"),
+    )
 
 
 engine = create_async_engine(get_settings().database_url, echo=False)

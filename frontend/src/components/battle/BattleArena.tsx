@@ -158,12 +158,13 @@ export default function BattleArena() {
             break;
         }
       });
-    } catch {
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to start battle";
       setState((prev) => ({
         ...prev,
         isStarting: false,
-        modelAError: "Failed to start battle",
-        modelBError: "Failed to start battle",
+        modelAError: message,
+        modelBError: message,
       }));
     }
   }, []);
@@ -181,7 +182,8 @@ export default function BattleArena() {
       const blob = await res.blob();
       const file = new File([blob], name, { type: blob.type });
       await handleStartBattle(file);
-    } catch {
+    } catch (err) {
+      console.error("Failed to fetch random document:", err);
       setState((prev) => ({ ...prev, isStarting: false }));
     }
   }, [handleStartBattle]);
@@ -192,7 +194,8 @@ export default function BattleArena() {
     try {
       const result = await voteBattle(state.battleId, winner);
       setState((prev) => ({ ...prev, voteResult: result, isVoting: false }));
-    } catch {
+    } catch (err) {
+      console.error("Vote failed:", err);
       setState((prev) => ({ ...prev, isVoting: false }));
     }
   }, [state.battleId]);

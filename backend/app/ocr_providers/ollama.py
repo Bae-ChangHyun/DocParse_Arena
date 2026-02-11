@@ -5,6 +5,7 @@ from collections.abc import AsyncGenerator
 import httpx
 from app.ocr_providers.base import OcrProvider, DEFAULT_OCR_PROMPT
 from app.models.schemas import OcrResult
+from app.config import get_settings
 
 
 class OllamaOcrProvider(OcrProvider):
@@ -12,6 +13,13 @@ class OllamaOcrProvider(OcrProvider):
         self.base_url = base_url or "http://localhost:11434"
         self.model_id = model_id
         self.extra_config = extra_config or {}
+        settings = get_settings()
+        self._timeout = httpx.Timeout(
+            connect=settings.ollama_connect_timeout,
+            read=settings.ollama_read_timeout,
+            write=settings.ollama_connect_timeout,
+            pool=settings.ollama_connect_timeout,
+        )
 
     def _build_payload(self, b64_image: str, prompt: str, stream: bool) -> dict:
         system_prompt = prompt or DEFAULT_OCR_PROMPT
@@ -34,7 +42,7 @@ class OllamaOcrProvider(OcrProvider):
         start = time.time()
         try:
             b64_image = base64.b64encode(image_data).decode("utf-8")
-            async with httpx.AsyncClient(timeout=120.0) as client:
+            async with httpx.AsyncClient(timeout=self._timeout) as client:
                 response = await client.post(
                     f"{self.base_url}/api/chat",
                     json=self._build_payload(b64_image, prompt, stream=False),
@@ -52,7 +60,7 @@ class OllamaOcrProvider(OcrProvider):
         self, image_data: bytes, mime_type: str, prompt: str = ""
     ) -> AsyncGenerator[str, None]:
         b64_image = base64.b64encode(image_data).decode("utf-8")
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        async with httpx.AsyncClient(timeout=self._timeout) as client:
             async with client.stream(
                 "POST",
                 f"{self.base_url}/api/chat",

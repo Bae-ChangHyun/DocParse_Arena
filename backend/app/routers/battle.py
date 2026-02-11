@@ -3,7 +3,7 @@ import json
 import os
 import uuid
 import aiofiles
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Query
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +15,8 @@ from app.services.ocr_service import select_random_models, run_ocr, run_ocr_stre
 from app.services.postprocessors import apply_postprocessor
 from app.services.elo_service import calculate_elo_change
 from app.config import get_settings
+from app.utils.mime import extension_to_mime, ALLOWED_EXTENSIONS
+from app.utils.file_validation import validate_file_content
 
 router = APIRouter(prefix="/api/battle", tags=["battle"])
 
@@ -29,19 +31,22 @@ async def start_battle(
 
     if file:
         ext = os.path.splitext(file.filename or "")[1].lower()
+        if ext not in ALLOWED_EXTENSIONS:
+            raise HTTPException(status_code=400, detail=f"Unsupported file type: {ext}")
         safe_name = f"{uuid.uuid4().hex}{ext}"
         os.makedirs(settings.sample_docs_dir, exist_ok=True)
         filepath = os.path.join(settings.sample_docs_dir, safe_name)
         content = await file.read()
-        MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MB
-        if len(content) > MAX_UPLOAD_SIZE:
+        if len(content) > settings.max_upload_size:
             raise HTTPException(status_code=413, detail="File too large (max 50 MB)")
+        if not validate_file_content(content, ext):
+            raise HTTPException(status_code=400, detail="File content does not match its extension")
         async with aiofiles.open(filepath, "wb") as f:
             await f.write(content)
         doc_path = safe_name
     elif document_name:
         filepath = os.path.join(settings.sample_docs_dir, document_name)
-        if not os.path.abspath(filepath).startswith(os.path.abspath(settings.sample_docs_dir)):
+        if not os.path.realpath(filepath).startswith(os.path.realpath(settings.sample_docs_dir)):
             raise HTTPException(status_code=400, detail="Invalid document name")
         if not os.path.exists(filepath):
             raise HTTPException(status_code=404, detail="Document not found")
@@ -106,16 +111,7 @@ async def stream_battle(battle_id: str, db: AsyncSession = Depends(get_db)):
         image_data = await f.read()
 
     ext = os.path.splitext(battle.document_path)[1].lower()
-    mime_map = {
-        ".png": "image/png",
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
-        ".webp": "image/webp",
-        ".pdf": "application/pdf",
-        ".tiff": "image/tiff",
-        ".bmp": "image/bmp",
-    }
-    mime_type = mime_map.get(ext, "image/png")
+    mime_type = extension_to_mime(ext, default="image/png")
 
     async def event_stream():
         import time as _time
@@ -132,7 +128,10 @@ async def stream_battle(battle_id: str, db: AsyncSession = Depends(get_db)):
             try:
                 async for chunk in run_ocr_stream(model, image_data, mime_type, db):
                     collected.append(chunk)
-                    await queue.put((token_event, json.dumps({"token": chunk})))
+                    try:
+                        await queue.put((token_event, json.dumps({"token": chunk})))
+                    except asyncio.CancelledError:
+                        return
                 latency = int((_time.time() - start) * 1000)
                 full_text = "".join(collected)
 
@@ -141,22 +140,45 @@ async def stream_battle(battle_id: str, db: AsyncSession = Depends(get_db)):
                 if pp_name and full_text:
                     processed_text = apply_postprocessor(pp_name, full_text)
                     results[key] = {"text": processed_text, "latency_ms": latency, "error": None}
-                    await queue.put((replace_event, json.dumps({"text": processed_text})))
+                    try:
+                        await queue.put((replace_event, json.dumps({"text": processed_text})))
+                    except asyncio.CancelledError:
+                        return
                 else:
                     results[key] = {"text": full_text, "latency_ms": latency, "error": None}
 
-                await queue.put((done_event, json.dumps({"latency_ms": latency})))
+                try:
+                    await queue.put((done_event, json.dumps({"latency_ms": latency})))
+                except asyncio.CancelledError:
+                    return
+            except asyncio.CancelledError:
+                return
             except Exception as e:
                 latency = int((_time.time() - start) * 1000)
                 results[key] = {"text": "", "latency_ms": latency, "error": str(e)}
-                await queue.put((done_event, json.dumps({"latency_ms": latency, "error": str(e)})))
+                try:
+                    await queue.put((done_event, json.dumps({"latency_ms": latency, "error": str(e)})))
+                except asyncio.CancelledError:
+                    return
 
         task_a = asyncio.create_task(_stream_model("a", model_a))
         task_b = asyncio.create_task(_stream_model("b", model_b))
 
         done_count = 0
+        _stream_timeout = get_settings().stream_timeout_seconds
         while done_count < 2:
-            event_name, event_data = await queue.get()
+            try:
+                event_name, event_data = await asyncio.wait_for(
+                    queue.get(), timeout=_stream_timeout
+                )
+            except asyncio.TimeoutError:
+                task_a.cancel()
+                task_b.cancel()
+                yield {
+                    "event": "error",
+                    "data": json.dumps({"error": "Stream timed out"}),
+                }
+                return
             yield {"event": event_name, "data": event_data}
             if event_name.endswith("_done"):
                 done_count += 1
@@ -194,7 +216,7 @@ async def vote_battle(battle_id: str, vote: VoteRequest, db: AsyncSession = Depe
     vote_result = await db.execute(
         update(Battle)
         .where(Battle.id == battle_id, Battle.winner.is_(None))
-        .values(winner=vote.winner, voted_at=datetime.utcnow())
+        .values(winner=vote.winner, voted_at=datetime.now(timezone.utc))
     )
     if vote_result.rowcount == 0:
         raise HTTPException(status_code=400, detail="Already voted")
