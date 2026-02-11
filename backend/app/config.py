@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     # ELO
     elo_k_factor: int = 20
 
+    # Privacy / security
+    store_ocr_results: bool = True  # Save OCR text to DB; disable for sensitive docs
+
     # Streaming
     stream_timeout_seconds: int = 300
 

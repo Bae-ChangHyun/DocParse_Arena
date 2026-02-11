@@ -62,8 +62,12 @@ export default function BattleArena() {
   useEffect(() => {
     return () => {
       eventSourceRef.current?.close();
+      // Revoke blob URL on unmount
+      if (state.documentUrl?.startsWith("blob:")) {
+        URL.revokeObjectURL(state.documentUrl);
+      }
     };
-  }, []);
+  }, [state.documentUrl]);
 
   const handleStartBattle = useCallback(async (file?: File, documentName?: string) => {
     setState({ ...initialState, isStarting: true });
@@ -71,7 +75,10 @@ export default function BattleArena() {
     try {
       const response = await startBattle(file, documentName);
 
-      const docUrl = `${getApiBase()}${response.document_url}`;
+      // Use local blob URL — files are NOT stored on the server
+      const docUrl = file
+        ? URL.createObjectURL(file)
+        : `${getApiBase()}${response.document_url}`;
 
       setState((prev) => ({
         ...prev,
@@ -203,8 +210,12 @@ export default function BattleArena() {
   const handleNewBattle = useCallback(() => {
     eventSourceRef.current?.close();
     eventSourceRef.current = null;
+    // Revoke blob URL to prevent memory leak
+    if (state.documentUrl?.startsWith("blob:")) {
+      URL.revokeObjectURL(state.documentUrl);
+    }
     setState(initialState);
-  }, []);
+  }, [state.documentUrl]);
 
   if (!state.battleId && !state.isStarting) {
     return (

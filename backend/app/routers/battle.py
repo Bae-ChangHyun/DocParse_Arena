@@ -1,8 +1,8 @@
 import asyncio
 import json
 import os
+import time as _time_module
 import uuid
-import aiofiles
 from datetime import datetime, timezone
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Query
 from sqlalchemy import select, update
@@ -20,6 +20,17 @@ from app.utils.file_validation import validate_file_content
 
 router = APIRouter(prefix="/api/battle", tags=["battle"])
 
+# ── In-memory file cache (no disk writes for uploads) ────────
+_battle_file_cache: dict[str, tuple[bytes, str, float]] = {}  # battle_id -> (data, mime, created_at)
+_CACHE_TTL = 1800  # 30 minutes
+
+
+def _cleanup_stale_cache() -> None:
+    now = _time_module.time()
+    expired = [k for k, (_, _, ts) in _battle_file_cache.items() if now - ts > _CACHE_TTL]
+    for k in expired:
+        del _battle_file_cache[k]
+
 
 @router.post("/start", response_model=BattleStartResponse)
 async def start_battle(
@@ -28,36 +39,42 @@ async def start_battle(
     db: AsyncSession = Depends(get_db),
 ):
     settings = get_settings()
+    _cleanup_stale_cache()
 
     if file:
         ext = os.path.splitext(file.filename or "")[1].lower()
         if ext not in ALLOWED_EXTENSIONS:
             raise HTTPException(status_code=400, detail=f"Unsupported file type: {ext}")
-        safe_name = f"{uuid.uuid4().hex}{ext}"
-        os.makedirs(settings.sample_docs_dir, exist_ok=True)
-        filepath = os.path.join(settings.sample_docs_dir, safe_name)
         content = await file.read()
         if len(content) > settings.max_upload_size:
             raise HTTPException(status_code=413, detail="File too large (max 50 MB)")
         if not validate_file_content(content, ext):
             raise HTTPException(status_code=400, detail="File content does not match its extension")
-        async with aiofiles.open(filepath, "wb") as f:
-            await f.write(content)
-        doc_path = safe_name
+        mime_type = extension_to_mime(ext, default="image/png")
+        doc_path = file.filename or f"upload{ext}"
     elif document_name:
         filepath = os.path.join(settings.sample_docs_dir, document_name)
         if not os.path.realpath(filepath).startswith(os.path.realpath(settings.sample_docs_dir)):
             raise HTTPException(status_code=400, detail="Invalid document name")
         if not os.path.exists(filepath):
             raise HTTPException(status_code=404, detail="Document not found")
+        with open(filepath, "rb") as f:
+            content = f.read()
+        ext = os.path.splitext(document_name)[1].lower()
+        mime_type = extension_to_mime(ext, default="image/png")
         doc_path = document_name
     else:
         raise HTTPException(status_code=400, detail="Provide a file or document_name")
 
     models = await select_random_models(db, 2)
 
+    battle_id = str(uuid.uuid4())
+
+    # Store file in memory cache (not on disk)
+    _battle_file_cache[battle_id] = (content, mime_type, _time_module.time())
+
     battle = Battle(
-        id=str(uuid.uuid4()),
+        id=battle_id,
         document_path=doc_path,
         model_a_id=models[0].id,
         model_b_id=models[1].id,
@@ -67,7 +84,7 @@ async def start_battle(
 
     return BattleStartResponse(
         battle_id=battle.id,
-        document_url=f"/api/documents/file/{doc_path}",
+        document_url="",
         model_a_label="Model A",
         model_b_label="Model B",
     )
@@ -104,18 +121,21 @@ async def stream_battle(battle_id: str, db: AsyncSession = Depends(get_db)):
     model_b_res = await db.execute(select(OcrModel).where(OcrModel.id == battle.model_b_id))
     model_b = model_b_res.scalar_one()
 
-    settings = get_settings()
-    filepath = os.path.join(settings.sample_docs_dir, battle.document_path)
-
-    async with aiofiles.open(filepath, "rb") as f:
-        image_data = await f.read()
-
-    ext = os.path.splitext(battle.document_path)[1].lower()
-    mime_type = extension_to_mime(ext, default="image/png")
+    # Read from in-memory cache first, fallback to disk for sample docs
+    cache_entry = _battle_file_cache.get(battle_id)
+    if cache_entry:
+        image_data, mime_type = cache_entry[0], cache_entry[1]
+    else:
+        settings = get_settings()
+        filepath = os.path.join(settings.sample_docs_dir, battle.document_path)
+        if not os.path.exists(filepath):
+            raise HTTPException(status_code=404, detail="Document no longer available")
+        with open(filepath, "rb") as f:
+            image_data = f.read()
+        ext = os.path.splitext(battle.document_path)[1].lower()
+        mime_type = extension_to_mime(ext, default="image/png")
 
     async def event_stream():
-        import time as _time
-
         queue: asyncio.Queue[tuple[str, str]] = asyncio.Queue()
         results: dict[str, dict] = {}
 
@@ -123,7 +143,7 @@ async def stream_battle(battle_id: str, db: AsyncSession = Depends(get_db)):
             token_event = f"model_{key}_token"
             done_event = f"model_{key}_done"
             replace_event = f"model_{key}_replace"
-            start = _time.time()
+            start = _time_module.time()
             collected: list[str] = []
             try:
                 async for chunk in run_ocr_stream(model, image_data, mime_type, db):
@@ -132,10 +152,9 @@ async def stream_battle(battle_id: str, db: AsyncSession = Depends(get_db)):
                         await queue.put((token_event, json.dumps({"token": chunk})))
                     except asyncio.CancelledError:
                         return
-                latency = int((_time.time() - start) * 1000)
+                latency = int((_time_module.time() - start) * 1000)
                 full_text = "".join(collected)
 
-                # Model-specific post-processing (fences already stripped in stream)
                 pp_name = get_postprocessor_name(model)
                 if pp_name and full_text:
                     processed_text = apply_postprocessor(pp_name, full_text)
@@ -154,7 +173,7 @@ async def stream_battle(battle_id: str, db: AsyncSession = Depends(get_db)):
             except asyncio.CancelledError:
                 return
             except Exception as e:
-                latency = int((_time.time() - start) * 1000)
+                latency = int((_time_module.time() - start) * 1000)
                 results[key] = {"text": "", "latency_ms": latency, "error": str(e)}
                 try:
                     await queue.put((done_event, json.dumps({"latency_ms": latency, "error": str(e)})))
@@ -185,14 +204,20 @@ async def stream_battle(battle_id: str, db: AsyncSession = Depends(get_db)):
 
         await asyncio.gather(task_a, task_b, return_exceptions=True)
 
+        # Free cached file data
+        _battle_file_cache.pop(battle_id, None)
+
+        # Save results to DB (latency always; OCR text only if configured)
+        settings = get_settings()
         async with async_session() as update_db:
             update_result = await update_db.execute(select(Battle).where(Battle.id == battle_id))
             battle_to_update = update_result.scalar_one()
             for key in ("a", "b"):
                 r = results.get(key)
                 if r:
-                    setattr(battle_to_update, f"model_{key}_result", r["text"])
                     setattr(battle_to_update, f"model_{key}_latency_ms", r["latency_ms"])
+                    if settings.store_ocr_results:
+                        setattr(battle_to_update, f"model_{key}_result", r["text"])
             await update_db.commit()
 
         yield {"event": "done", "data": "{}"}
@@ -212,7 +237,6 @@ async def vote_battle(battle_id: str, vote: VoteRequest, db: AsyncSession = Depe
     if battle.winner:
         raise HTTPException(status_code=400, detail="Already voted")
 
-    # Atomically mark battle as voted (prevents double-vote race condition)
     vote_result = await db.execute(
         update(Battle)
         .where(Battle.id == battle_id, Battle.winner.is_(None))
@@ -228,7 +252,6 @@ async def vote_battle(battle_id: str, vote: VoteRequest, db: AsyncSession = Depe
 
     change_a, change_b = calculate_elo_change(model_a.elo, model_b.elo, vote.winner)
 
-    # Atomic SQL updates to prevent lost updates under concurrency
     update_a = {
         "elo": OcrModel.elo + change_a,
         "total_battles": OcrModel.total_battles + 1,
@@ -259,7 +282,6 @@ async def vote_battle(battle_id: str, vote: VoteRequest, db: AsyncSession = Depe
 
     await db.commit()
 
-    # Refresh for response
     await db.refresh(model_a)
     await db.refresh(model_b)
 
@@ -282,7 +304,7 @@ async def get_battle(battle_id: str, db: AsyncSession = Depends(get_db)):
 
     data = {
         "id": battle.id,
-        "document_url": f"/api/documents/file/{battle.document_path}",
+        "document_name": battle.document_path,
         "model_a_result": battle.model_a_result,
         "model_b_result": battle.model_b_result,
         "model_a_latency_ms": battle.model_a_latency_ms,
