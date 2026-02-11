@@ -1,19 +1,32 @@
-import secrets
+from datetime import datetime, timezone
+
+import jwt
 from fastapi import Request, HTTPException
 
 from app.config import get_settings
 
-_active_tokens: set[str] = set()
-
 
 def create_token() -> str:
-    token = secrets.token_hex(32)
-    _active_tokens.add(token)
-    return token
+    settings = get_settings()
+    now = datetime.now(timezone.utc)
+    payload = {
+        "sub": "admin",
+        "iat": now,
+        "exp": datetime.fromtimestamp(
+            now.timestamp() + settings.jwt_expiry_minutes * 60,
+            tz=timezone.utc,
+        ),
+    }
+    return jwt.encode(payload, settings.get_jwt_secret(), algorithm="HS256")
 
 
 def verify_token(token: str) -> bool:
-    return token in _active_tokens
+    settings = get_settings()
+    try:
+        jwt.decode(token, settings.get_jwt_secret(), algorithms=["HS256"])
+        return True
+    except jwt.PyJWTError:
+        return False
 
 
 async def require_admin(request: Request) -> None:

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy import select, func, and_, case
+from sqlalchemy import select, func, and_, case, literal_column
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.database import get_db, OcrModel, Battle
@@ -41,61 +41,67 @@ async def get_leaderboard(db: AsyncSession = Depends(get_db)):
 
 @router.get("/head-to-head", response_model=list[HeadToHeadEntry])
 async def get_head_to_head(db: AsyncSession = Depends(get_db)):
-    models_result = await db.execute(
-        select(OcrModel).where(OcrModel.is_active == True).order_by(OcrModel.elo.desc())
+    # Normalize pairs so model_a_id < model_b_id to aggregate both directions
+    pair_lo = func.min(Battle.model_a_id, Battle.model_b_id).label("pair_lo")
+    pair_hi = func.max(Battle.model_a_id, Battle.model_b_id).label("pair_hi")
+
+    # Count wins for the "lo" model (the one with the smaller id string)
+    lo_wins = func.count().filter(
+        # "lo" was in position A and won, or "lo" was in position B and won
+        (
+            (Battle.model_a_id < Battle.model_b_id) & (Battle.winner == "a")
+        ) | (
+            (Battle.model_a_id > Battle.model_b_id) & (Battle.winner == "b")
+        )
+    ).label("lo_wins")
+
+    hi_wins = func.count().filter(
+        (
+            (Battle.model_a_id < Battle.model_b_id) & (Battle.winner == "b")
+        ) | (
+            (Battle.model_a_id > Battle.model_b_id) & (Battle.winner == "a")
+        )
+    ).label("hi_wins")
+
+    ties = func.count().filter(Battle.winner == "tie").label("ties")
+    total = func.count().label("total")
+
+    stmt = (
+        select(pair_lo, pair_hi, lo_wins, hi_wins, ties, total)
+        .where(Battle.winner.isnot(None))
+        .group_by(pair_lo, pair_hi)
     )
-    models = list(models_result.scalars().all())
+    pairs_result = await db.execute(stmt)
+    pairs = pairs_result.all()
+
+    if not pairs:
+        return []
+
+    # Fetch model names in a single query
+    model_ids = set()
+    for row in pairs:
+        model_ids.add(row.pair_lo)
+        model_ids.add(row.pair_hi)
+
+    models_result = await db.execute(
+        select(OcrModel.id, OcrModel.display_name).where(OcrModel.id.in_(model_ids))
+    )
+    name_map = {row.id: row.display_name for row in models_result.all()}
 
     entries = []
-    for i, model_a in enumerate(models):
-        for model_b in models[i + 1:]:
-            battles_result = await db.execute(
-                select(
-                    func.count().filter(Battle.winner == "a").label("a_wins_as_a"),
-                    func.count().filter(Battle.winner == "b").label("b_wins_as_a"),
-                    func.count().filter(Battle.winner == "tie").label("ties_as_a"),
-                ).where(
-                    and_(
-                        Battle.model_a_id == model_a.id,
-                        Battle.model_b_id == model_b.id,
-                        Battle.winner.isnot(None),
-                    )
+    for row in pairs:
+        if row.total > 0:
+            entries.append(
+                HeadToHeadEntry(
+                    model_a_id=row.pair_lo,
+                    model_a_name=name_map.get(row.pair_lo, "Unknown"),
+                    model_b_id=row.pair_hi,
+                    model_b_name=name_map.get(row.pair_hi, "Unknown"),
+                    a_wins=row.lo_wins,
+                    b_wins=row.hi_wins,
+                    ties=row.ties,
+                    total=row.total,
                 )
             )
-            row_a = battles_result.one()
-
-            battles_result2 = await db.execute(
-                select(
-                    func.count().filter(Battle.winner == "a").label("a_wins_as_b"),
-                    func.count().filter(Battle.winner == "b").label("b_wins_as_b"),
-                    func.count().filter(Battle.winner == "tie").label("ties_as_b"),
-                ).where(
-                    and_(
-                        Battle.model_a_id == model_b.id,
-                        Battle.model_b_id == model_a.id,
-                        Battle.winner.isnot(None),
-                    )
-                )
-            )
-            row_b = battles_result2.one()
-
-            a_wins = (row_a[0] or 0) + (row_b[1] or 0)
-            b_wins = (row_a[1] or 0) + (row_b[0] or 0)
-            ties = (row_a[2] or 0) + (row_b[2] or 0)
-            total = a_wins + b_wins + ties
-
-            if total > 0:
-                entries.append(
-                    HeadToHeadEntry(
-                        model_a_id=model_a.id,
-                        model_a_name=model_a.display_name,
-                        model_b_id=model_b.id,
-                        model_b_name=model_b.display_name,
-                        a_wins=a_wins,
-                        b_wins=b_wins,
-                        ties=ties,
-                        total=total,
-                    )
-                )
 
     return entries

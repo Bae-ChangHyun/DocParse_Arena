@@ -153,47 +153,52 @@ export async function startBattle(file?: File, documentName?: string): Promise<B
 }
 
 export function streamBattle(battleId: string, onEvent: (event: string, data: unknown) => void): EventSource {
-  const es = new EventSource(`${API_BASE}/api/battle/${battleId}/stream`);
+  const MAX_RETRIES = 3;
+  const BASE_DELAY = 1000;
+  const MAX_DELAY = 8000;
+  let retryCount = 0;
+  let currentEs: EventSource | null = null;
 
-  // Streaming token events (live battles)
-  es.addEventListener("model_a_token", (e) => {
-    onEvent("model_a_token", JSON.parse(e.data));
-  });
-  es.addEventListener("model_b_token", (e) => {
-    onEvent("model_b_token", JSON.parse(e.data));
-  });
-  es.addEventListener("model_a_done", (e) => {
-    onEvent("model_a_done", JSON.parse(e.data));
-  });
-  es.addEventListener("model_b_done", (e) => {
-    onEvent("model_b_done", JSON.parse(e.data));
-  });
+  function connect(): EventSource {
+    const es = new EventSource(`${API_BASE}/api/battle/${battleId}/stream`);
+    currentEs = es;
 
-  es.addEventListener("model_a_replace", (e) => {
-    onEvent("model_a_replace", JSON.parse(e.data));
-  });
-  es.addEventListener("model_b_replace", (e) => {
-    onEvent("model_b_replace", JSON.parse(e.data));
-  });
+    const events = [
+      "model_a_token", "model_b_token",
+      "model_a_done", "model_b_done",
+      "model_a_replace", "model_b_replace",
+      "model_a_result", "model_b_result",
+    ];
 
-  // Cached battle events (backward compat — full result in one shot)
-  es.addEventListener("model_a_result", (e) => {
-    onEvent("model_a_result", JSON.parse(e.data));
-  });
-  es.addEventListener("model_b_result", (e) => {
-    onEvent("model_b_result", JSON.parse(e.data));
-  });
+    for (const eventName of events) {
+      es.addEventListener(eventName, (e) => {
+        retryCount = 0; // Reset on successful event
+        onEvent(eventName, JSON.parse(e.data));
+      });
+    }
 
-  es.addEventListener("done", () => {
-    onEvent("done", {});
-    es.close();
-  });
-  es.onerror = () => {
-    onEvent("error", { error: "Connection lost" });
-    es.close();
-  };
+    es.addEventListener("done", () => {
+      onEvent("done", {});
+      es.close();
+    });
 
-  return es;
+    es.onerror = () => {
+      es.close();
+      if (retryCount < MAX_RETRIES) {
+        const delay = Math.min(BASE_DELAY * Math.pow(2, retryCount), MAX_DELAY);
+        retryCount++;
+        setTimeout(() => {
+          currentEs = connect();
+        }, delay);
+      } else {
+        onEvent("error", { error: "Connection lost after retries" });
+      }
+    };
+
+    return es;
+  }
+
+  return connect();
 }
 
 export async function voteBattle(battleId: string, winner: string): Promise<VoteResponse> {

@@ -1,3 +1,4 @@
+import hmac
 import uuid
 import httpx
 from fastapi import APIRouter, HTTPException, Depends
@@ -38,7 +39,7 @@ async def admin_login(data: AdminLoginRequest):
     settings = get_settings()
     if not settings.admin_password:
         return {"token": ""}
-    if data.password != settings.admin_password:
+    if not hmac.compare_digest(data.password, settings.admin_password):
         raise HTTPException(status_code=401, detail="Invalid password")
     token = create_token()
     return {"token": token}

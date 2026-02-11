@@ -6,7 +6,8 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import rehypeRaw from "rehype-raw";
-import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
+import rehypeSanitize from "rehype-sanitize";
+import { sanitizeSchema } from "@/lib/markdown-config";
 import "katex/dist/katex.min.css";
 import { Copy, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -82,16 +83,7 @@ export default function PlaygroundResult({ result, isLoading, error }: Playgroun
             <div className="p-4 prose prose-sm max-w-none dark:prose-invert">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm, remarkMath]}
-                rehypePlugins={[rehypeKatex, rehypeRaw, [rehypeSanitize, {
-                  ...defaultSchema,
-                  tagNames: [...(defaultSchema.tagNames || []), "math", "semantics", "mrow", "mi", "mo", "mn", "msup", "msub", "mfrac", "mover", "munder", "mtable", "mtr", "mtd", "annotation"],
-                  attributes: {
-                    ...defaultSchema.attributes,
-                    "*": [...(defaultSchema.attributes?.["*"] || []), "className", "style"],
-                    span: [...(defaultSchema.attributes?.["span"] || []), "className", "style"],
-                    div: [...(defaultSchema.attributes?.["div"] || []), "className", "style"],
-                  },
-                }]]}
+                rehypePlugins={[rehypeKatex, rehypeRaw, [rehypeSanitize, sanitizeSchema]]}
               >{preprocessOcrText(result.result)}</ReactMarkdown>
             </div>
           </ScrollArea>

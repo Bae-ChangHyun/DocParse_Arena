@@ -6,10 +6,10 @@ from fastapi import APIRouter, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse
 
 from app.config import get_settings
+from app.utils.mime import ALLOWED_EXTENSIONS, extension_to_mime
+from app.utils.file_validation import validate_file_content
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
-
-ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".pdf", ".tiff", ".bmp"}
 
 
 @router.get("/random")
@@ -63,23 +63,14 @@ async def get_document(filename: str):
     settings = get_settings()
     filepath = os.path.join(settings.sample_docs_dir, filename)
 
-    if not os.path.abspath(filepath).startswith(os.path.abspath(settings.sample_docs_dir)):
+    if not os.path.realpath(filepath).startswith(os.path.realpath(settings.sample_docs_dir)):
         raise HTTPException(status_code=400, detail="Invalid filename")
 
     if not os.path.exists(filepath):
         raise HTTPException(status_code=404, detail="File not found")
 
     ext = os.path.splitext(filename)[1].lower()
-    mime_map = {
-        ".png": "image/png",
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
-        ".webp": "image/webp",
-        ".pdf": "application/pdf",
-        ".tiff": "image/tiff",
-        ".bmp": "image/bmp",
-    }
-    media_type = mime_map.get(ext, "application/octet-stream")
+    media_type = extension_to_mime(ext)
     return FileResponse(filepath, media_type=media_type)
 
 
@@ -95,10 +86,12 @@ async def upload_document(file: UploadFile = File(...)):
     safe_name = f"{uuid.uuid4().hex}{ext}"
     filepath = os.path.join(settings.sample_docs_dir, safe_name)
 
-    MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MB
     content = await file.read()
-    if len(content) > MAX_UPLOAD_SIZE:
+    if len(content) > settings.max_upload_size:
         raise HTTPException(status_code=413, detail="File too large (max 50 MB)")
+
+    if not validate_file_content(content, ext):
+        raise HTTPException(status_code=400, detail="File content does not match its extension")
 
     async with aiofiles.open(filepath, "wb") as f:
         await f.write(content)
