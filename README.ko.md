@@ -5,7 +5,7 @@
 [![Next.js 15](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-009688.svg)](https://fastapi.tiangolo.com/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](https://www.docker.com/)
-[![Built with Claude Code](https://img.shields.io/badge/Built%20with-Claude%20Code-D97757.svg?logo=claude)](https://docs.anthropic.com/en/docs/claude-code)
+[![Built with Claude Code](https://img.shields.io/badge/Claude-D97757?style=for-the-badge&logo=claude&logoColor=white)](https://docs.anthropic.com/en/docs/claude-code)
 
 [English](README.md) | **한국어**
 
