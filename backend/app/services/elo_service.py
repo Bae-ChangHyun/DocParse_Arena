@@ -1,4 +1,4 @@
-K_FACTOR = 20
+from app.config import get_settings
 
 
 def calculate_expected(rating_a: int, rating_b: int) -> tuple[float, float]:
@@ -12,6 +12,7 @@ def calculate_elo_change(
 ) -> tuple[int, int]:
     """Calculate new ELO ratings. Returns (change_a, change_b)."""
     ea, eb = calculate_expected(rating_a, rating_b)
+    k_factor = get_settings().elo_k_factor
 
     if winner == "a":
         sa, sb = 1.0, 0.0
@@ -20,7 +21,7 @@ def calculate_elo_change(
     else:  # tie
         sa, sb = 0.5, 0.5
 
-    change_a = round(K_FACTOR * (sa - ea))
-    change_b = round(K_FACTOR * (sb - eb))
+    change_a = round(k_factor * (sa - ea))
+    change_b = round(k_factor * (sb - eb))
 
     return change_a, change_b

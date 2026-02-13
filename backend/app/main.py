@@ -28,15 +28,20 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="DocParse Arena", lifespan=lifespan)
-
 settings = get_settings()
+
+app = FastAPI(
+    title="DocParse Arena",
+    lifespan=lifespan,
+    docs_url="/docs" if settings.debug else None,
+    redoc_url="/redoc" if settings.debug else None,
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 app.include_router(admin.public_router)

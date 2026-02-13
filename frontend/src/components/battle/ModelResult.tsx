@@ -6,7 +6,8 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import rehypeRaw from "rehype-raw";
-import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
+import rehypeSanitize from "rehype-sanitize";
+import { sanitizeSchema } from "@/lib/markdown-config";
 import "katex/dist/katex.min.css";
 import "markstream-react/index.tailwind.css";
 import { preprocessOcrText } from "@/lib/markdown-utils";
@@ -108,16 +109,7 @@ export default function ModelResult({
               <div className="p-4 prose prose-sm max-w-none dark:prose-invert">
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm, remarkMath]}
-                  rehypePlugins={[rehypeKatex, rehypeRaw, [rehypeSanitize, {
-                    ...defaultSchema,
-                    tagNames: [...(defaultSchema.tagNames || []), "math", "semantics", "mrow", "mi", "mo", "mn", "msup", "msub", "mfrac", "mover", "munder", "mtable", "mtr", "mtd", "annotation"],
-                    attributes: {
-                      ...defaultSchema.attributes,
-                      "*": [...(defaultSchema.attributes?.["*"] || []), "className", "style"],
-                      span: [...(defaultSchema.attributes?.["span"] || []), "className", "style"],
-                      div: [...(defaultSchema.attributes?.["div"] || []), "className", "style"],
-                    },
-                  }]]}
+                  rehypePlugins={[rehypeKatex, rehypeRaw, [rehypeSanitize, sanitizeSchema]]}
                 >{preprocessOcrText(text)}</ReactMarkdown>
               </div>
             </ScrollArea>

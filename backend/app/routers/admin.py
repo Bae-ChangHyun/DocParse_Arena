@@ -1,4 +1,7 @@
+import hmac
+import ipaddress
 import uuid
+from urllib.parse import urlparse
 import httpx
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy import select, delete
@@ -20,6 +23,7 @@ from app.models.schemas import (
 from app.config import get_settings
 from app.auth import require_admin, create_token
 from app.vlm_registry import list_registry, match_registry
+from app.utils.error_sanitizer import sanitize_error
 
 # Public router: no auth required
 public_router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -38,7 +42,7 @@ async def admin_login(data: AdminLoginRequest):
     settings = get_settings()
     if not settings.admin_password:
         return {"token": ""}
-    if data.password != settings.admin_password:
+    if not hmac.compare_digest(data.password, settings.admin_password):
         raise HTTPException(status_code=401, detail="Invalid password")
     token = create_token()
     return {"token": token}
@@ -129,8 +133,10 @@ async def update_provider(
     # Skip masked api_key (frontend sends back masked value if unchanged)
     if "api_key" in updates and "***" in updates["api_key"]:
         del updates["api_key"]
+    _PROVIDER_ALLOWED_FIELDS = {"display_name", "api_key", "base_url", "is_enabled"}
     for field, value in updates.items():
-        setattr(provider, field, value)
+        if field in _PROVIDER_ALLOWED_FIELDS:
+            setattr(provider, field, value)
 
     await db.commit()
     await db.refresh(provider)
@@ -300,11 +306,27 @@ async def _test_api_key(ptype: str, api_key: str) -> tuple[bool, str]:
     except httpx.TimeoutException:
         return False, "Connection timed out"
     except Exception as e:
-        return False, f"Connection failed: {e}"
+        return False, f"Connection failed: {sanitize_error(e)}"
+
+
+def _is_private_url(url: str) -> bool:
+    """Check if a URL resolves to a private/loopback IP address."""
+    try:
+        parsed = urlparse(url)
+        hostname = parsed.hostname
+        if not hostname:
+            return True
+        addr = ipaddress.ip_address(hostname)
+        return addr.is_private or addr.is_loopback or addr.is_link_local
+    except ValueError:
+        # hostname is a domain name, not an IP — allow it
+        return False
 
 
 async def _test_url(base_url: str, ptype: str, api_key: str = "") -> tuple[bool, str]:
     """Test connectivity to a base URL."""
+    if ptype != "ollama" and _is_private_url(base_url):
+        return False, "Private/internal URLs are not allowed for non-Ollama providers"
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             if ptype == "ollama":
@@ -324,7 +346,7 @@ async def _test_url(base_url: str, ptype: str, api_key: str = "") -> tuple[bool,
     except httpx.TimeoutException:
         return False, "Connection timed out"
     except Exception as e:
-        return False, f"Connection failed: {e}"
+        return False, f"Connection failed: {sanitize_error(e)}"
 
 
 @router.get("/providers/{provider_id}/models")
@@ -398,7 +420,7 @@ async def list_provider_models(provider_id: str, db: AsyncSession = Depends(get_
                         data = resp.json()
                         models = sorted([m["id"] for m in data.get("data", [])])
     except Exception as e:
-        return {"models": models, "error": str(e)}
+        return {"models": models, "error": sanitize_error(e)}
 
     return {"models": models}
 
@@ -472,8 +494,10 @@ async def update_model(
     # Skip masked api_key (frontend sends back masked value if unchanged)
     if "api_key" in updates and "***" in updates["api_key"]:
         del updates["api_key"]
+    _MODEL_ALLOWED_FIELDS = set(OcrModelUpdate.model_fields.keys())
     for field, value in updates.items():
-        setattr(model, field, value)
+        if field in _MODEL_ALLOWED_FIELDS:
+            setattr(model, field, value)
 
     await db.commit()
     await db.refresh(model)

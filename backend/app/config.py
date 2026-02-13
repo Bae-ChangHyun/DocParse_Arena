@@ -1,11 +1,13 @@
+import os
+import secrets
+
 from pydantic_settings import BaseSettings
 from functools import lru_cache
-import os
 
 
 class Settings(BaseSettings):
     app_name: str = "DocParse Arena"
-    debug: bool = True
+    debug: bool = False
 
     database_url: str = "sqlite+aiosqlite:///./ocr_arena.db"
 
@@ -21,7 +23,39 @@ class Settings(BaseSettings):
 
     cors_origins: list[str] = ["http://localhost:3000"]
 
+    # JWT settings
+    jwt_secret: str = ""
+    jwt_expiry_minutes: int = 1440  # 24 hours
+
+    # Upload limits
+    max_upload_size: int = 50 * 1024 * 1024  # 50 MB
+
+    # PDF processing
+    max_pdf_pages: int = 50
+    pdf_dpi: float = 216.0
+
+    # ELO
+    elo_k_factor: int = 20
+
+    # Privacy / security
+    store_ocr_results: bool = True  # Save OCR text to DB; disable for sensitive docs
+
+    # Streaming
+    stream_timeout_seconds: int = 300
+
+    # Ollama timeouts
+    ollama_connect_timeout: float = 10.0
+    ollama_read_timeout: float = 120.0
+
     model_config = {"env_file": ".env", "extra": "ignore"}
+
+    def get_jwt_secret(self) -> str:
+        if self.jwt_secret:
+            return self.jwt_secret
+        # Generate a random secret per process (tokens won't survive restart)
+        if not hasattr(self, "_runtime_jwt_secret"):
+            object.__setattr__(self, "_runtime_jwt_secret", secrets.token_hex(32))
+        return self._runtime_jwt_secret
 
 
 @lru_cache

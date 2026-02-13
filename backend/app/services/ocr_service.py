@@ -1,5 +1,6 @@
 import asyncio
 import random
+import re
 import time
 from collections.abc import AsyncGenerator
 from sqlalchemy import select
@@ -15,7 +16,8 @@ from app.ocr_providers.mistral import MistralOcrProvider
 from app.ocr_providers.ollama import OllamaOcrProvider
 from app.ocr_providers.custom import CustomOcrProvider
 from app.services.pdf_service import pdf_to_images_async
-from app.services.postprocessors import apply_postprocessor
+from app.config import get_settings
+from app.services.postprocessors import apply_postprocessor, strip_code_fences
 
 PROVIDER_MAP = {
     "claude": ClaudeOcrProvider,
@@ -132,14 +134,19 @@ async def run_ocr(
 
     # Handle PDF: split into pages, OCR each, merge
     if mime_type == "application/pdf":
-        result = await _run_ocr_pdf(provider, image_data, prompt)
+        settings = get_settings()
+        result = await _run_ocr_pdf(provider, image_data, prompt, settings.pdf_dpi, settings.max_pdf_pages)
     else:
         result = await provider.process_image(image_data, mime_type, prompt)
 
-    # Apply post-processing if configured
-    if postprocessor_name and result.text and not result.error:
+    # Global post-processing: strip code fences (```markdown ... ```)
+    if result.text and not result.error:
+        cleaned = strip_code_fences(result.text)
+        # Model-specific post-processing
+        if postprocessor_name:
+            cleaned = apply_postprocessor(postprocessor_name, cleaned)
         result = OcrResult(
-            text=apply_postprocessor(postprocessor_name, result.text),
+            text=cleaned,
             latency_ms=result.latency_ms,
             error=result.error,
         )
@@ -147,11 +154,14 @@ async def run_ocr(
     return result
 
 
-async def _run_ocr_pdf(provider: OcrProvider, pdf_data: bytes, prompt: str) -> OcrResult:
+async def _run_ocr_pdf(
+    provider: OcrProvider, pdf_data: bytes, prompt: str,
+    dpi: float = 216.0, max_pages: int = 50,
+) -> OcrResult:
     """Split PDF into page images, OCR each page in parallel, merge results."""
     start = time.time()
     try:
-        pages = await pdf_to_images_async(pdf_data)
+        pages = await pdf_to_images_async(pdf_data, dpi=dpi, max_pages=max_pages)
     except Exception as e:
         return OcrResult(text="", latency_ms=0, error=f"PDF conversion failed: {e}")
 
@@ -181,7 +191,7 @@ async def _run_ocr_pdf(provider: OcrProvider, pdf_data: bytes, prompt: str) -> O
             errors.append(f"Page {idx + 1}: {result.error}")
         else:
             header = f"\n\n---\n\n<!-- Page {idx + 1} -->\n\n" if idx > 0 else ""
-            text = result.text.lstrip("```markdown").rstrip("```").strip()
+            text = strip_code_fences(result.text).strip()
             merged_parts.append(header + text)
 
     total_latency = int((time.time() - start) * 1000)
@@ -197,6 +207,55 @@ def get_postprocessor_name(model: OcrModel) -> str:
     return extra_config.get("postprocessor", "")
 
 
+async def _strip_stream_fences(
+    chunks: AsyncGenerator[str, None],
+) -> AsyncGenerator[str, None]:
+    """Strip opening/closing code fences from a token stream in real time.
+
+    - Head: buffers initial tokens; if first line is ```markdown/```/etc, skips it.
+    - Tail: holds back last few chars; if stream ends with ```, strips it.
+    """
+    head = ""
+    head_resolved = False
+    fence_opened = False
+    pending = ""
+
+    async for chunk in chunks:
+        if not head_resolved:
+            head += chunk
+            if "\n" in head:
+                nl = head.index("\n")
+                first_line = head[:nl].strip()
+                if re.match(r"^```\w*$", first_line):
+                    fence_opened = True
+                    pending = head[nl + 1:]
+                else:
+                    pending = head
+                head_resolved = True
+            elif len(head) > 20:
+                # No newline in first 20 chars — not a fence
+                head_resolved = True
+                pending = head
+            continue
+
+        # Stream through with a small tail buffer for closing fence detection
+        pending += chunk
+        if len(pending) > 6:
+            yield pending[:-6]
+            pending = pending[-6:]
+
+    # Flush
+    if not head_resolved:
+        pending = head
+
+    if fence_opened and pending.rstrip().endswith("```"):
+        cleaned = pending.rstrip()[:-3]
+        if cleaned:
+            yield cleaned
+    elif pending:
+        yield pending
+
+
 async def run_ocr_stream(
     model: OcrModel,
     image_data: bytes,
@@ -208,8 +267,9 @@ async def run_ocr_stream(
     """Yield text chunks as the provider streams tokens.
 
     Streams for all inputs including PDFs (page-by-page sequential).
-    Postprocessor is NOT applied here — callers handle that separately
-    so raw tokens can be streamed for real-time UX.
+    Code fences are stripped in real-time per page/image.
+    Model-specific postprocessors are NOT applied here — callers handle that
+    separately via replace events after full collection.
     """
     api_key = model.api_key or ""
     base_url = model.base_url or ""
@@ -230,14 +290,19 @@ async def run_ocr_stream(
     provider = get_provider(provider_type, model.model_id, api_key, base_url, extra_config)
 
     if mime_type == "application/pdf":
-        pages = await pdf_to_images_async(pdf_data=image_data)
+        _settings = get_settings()
+        pages = await pdf_to_images_async(
+            pdf_data=image_data, dpi=_settings.pdf_dpi, max_pages=_settings.max_pdf_pages
+        )
         if not pages:
             raise RuntimeError("PDF has no pages")
         for page_idx, (page_bytes, page_mime) in enumerate(pages):
             if page_idx > 0:
                 yield f"\n\n---\n\n<!-- Page {page_idx + 1} -->\n\n"
-            async for chunk in provider.process_image_stream(page_bytes, page_mime, prompt):
+            raw = provider.process_image_stream(page_bytes, page_mime, prompt)
+            async for chunk in _strip_stream_fences(raw):
                 yield chunk
     else:
-        async for chunk in provider.process_image_stream(image_data, mime_type, prompt):
+        raw = provider.process_image_stream(image_data, mime_type, prompt)
+        async for chunk in _strip_stream_fences(raw):
             yield chunk

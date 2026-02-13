@@ -9,6 +9,37 @@ from __future__ import annotations
 import json
 import re
 
+# Matches opening code fence: ```markdown, ```md, ```html, ```json, ``` etc.
+_CODE_FENCE_OPEN_RE = re.compile(r"^```\w*\s*$", re.MULTILINE)
+
+
+def strip_code_fences(text: str) -> str:
+    """Remove wrapping markdown code fences from OCR output.
+
+    Many LLMs wrap their entire response in ```markdown ... ```.
+    This strips the outermost fence if present.
+    Applied globally to all OCR results before model-specific post-processing.
+    """
+    stripped = text.strip()
+    if not stripped.startswith("```"):
+        return text
+
+    first_newline = stripped.find("\n")
+    if first_newline == -1:
+        return text
+
+    opening_line = stripped[:first_newline].strip()
+    if not re.match(r"^```\w*$", opening_line):
+        return text
+
+    if not stripped.endswith("```"):
+        return text
+
+    # Strip opening fence line and closing ```
+    inner = stripped[first_newline + 1:]
+    inner = inner[: -len("```")].rstrip("\n")
+    return inner
+
 # Matches DeepSeek grounding labels: sub_title[[x, y, w, h]]
 _GROUNDING_LABEL_RE = re.compile(
     r"^(sub_title|text|image|table|title|header|footer|formula|caption)\[\[[\d,\s]+\]\]\s*$",
@@ -31,14 +62,7 @@ def deepseek_clean(text: str) -> str:
     keeping only the content as clean markdown.
     """
     text = text.replace("<｜end▁of▁sentence｜>", "")
-
-    # Strip markdown code fences
-    stripped = text.strip()
-    if stripped.startswith("```"):
-        stripped = stripped.removeprefix("```markdown").removeprefix("```")
-        if stripped.endswith("```"):
-            stripped = stripped[:-3]
-        text = stripped
+    text = strip_code_fences(text)
 
     # Check if text contains grounding labels
     if not _GROUNDING_LABEL_RE.search(text):

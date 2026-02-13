@@ -1,5 +1,4 @@
 import os
-import uuid
 import aiofiles
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Query, Form
 from sqlalchemy import select
@@ -10,6 +9,8 @@ from app.models.schemas import PlaygroundResponse, OcrModelOut
 from app.services.ocr_service import run_ocr, _resolve_prompt
 from app.ocr_providers.base import DEFAULT_OCR_PROMPT
 from app.config import get_settings
+from app.utils.mime import extension_to_mime, ALLOWED_EXTENSIONS
+from app.utils.file_validation import validate_file_content
 
 router = APIRouter(prefix="/api/playground", tags=["playground"])
 
@@ -66,11 +67,17 @@ async def playground_ocr(
     settings = get_settings()
 
     if file:
-        image_data = await file.read()
         ext = os.path.splitext(file.filename or "")[1].lower()
+        if ext not in ALLOWED_EXTENSIONS:
+            raise HTTPException(status_code=400, detail=f"Unsupported file type: {ext}")
+        image_data = await file.read()
+        if len(image_data) > settings.max_upload_size:
+            raise HTTPException(status_code=413, detail="File too large")
+        if not validate_file_content(image_data, ext):
+            raise HTTPException(status_code=400, detail="File content does not match its extension")
     elif document_name:
         filepath = os.path.join(settings.sample_docs_dir, document_name)
-        if not os.path.abspath(filepath).startswith(os.path.abspath(settings.sample_docs_dir)):
+        if not os.path.realpath(filepath).startswith(os.path.realpath(settings.sample_docs_dir)):
             raise HTTPException(status_code=400, detail="Invalid document name")
         if not os.path.exists(filepath):
             raise HTTPException(status_code=404, detail="Document not found")
@@ -80,16 +87,7 @@ async def playground_ocr(
     else:
         raise HTTPException(status_code=400, detail="Provide a file or document_name")
 
-    mime_map = {
-        ".png": "image/png",
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
-        ".webp": "image/webp",
-        ".pdf": "application/pdf",
-        ".tiff": "image/tiff",
-        ".bmp": "image/bmp",
-    }
-    mime_type = mime_map.get(ext, "image/png")
+    mime_type = extension_to_mime(ext, default="image/png")
 
     ocr_result = await run_ocr(
         model, image_data, mime_type, db,

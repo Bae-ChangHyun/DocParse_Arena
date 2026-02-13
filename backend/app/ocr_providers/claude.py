@@ -4,6 +4,7 @@ from collections.abc import AsyncGenerator
 import anthropic
 from app.ocr_providers.base import OcrProvider, DEFAULT_OCR_PROMPT
 from app.models.schemas import OcrResult
+from app.utils.error_sanitizer import sanitize_error
 
 
 class ClaudeOcrProvider(OcrProvider):
@@ -56,7 +57,7 @@ class ClaudeOcrProvider(OcrProvider):
             return OcrResult(text=text, latency_ms=latency)
         except Exception as e:
             latency = int((time.time() - start) * 1000)
-            return OcrResult(text="", latency_ms=latency, error=str(e))
+            return OcrResult(text="", latency_ms=latency, error=sanitize_error(e))
 
     async def process_image_stream(
         self, image_data: bytes, mime_type: str, prompt: str = ""

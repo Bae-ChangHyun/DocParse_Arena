@@ -22,6 +22,11 @@ backend/.env
 # OS
 .DS_Store
 
+# Uploaded / sample documents (user data)
+backend/sample_docs/*
+!backend/sample_docs/.gitkeep
+
 # Misc
 todo.md
+temp.md
 *.pyc
