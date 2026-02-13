@@ -11,7 +11,7 @@ cleanup() {
     exit 0
 }
 
-trap cleanup SIGTERM SIGINT
+trap cleanup TERM INT
 
 # Start backend (uvicorn) in background
 echo "Starting backend..."
