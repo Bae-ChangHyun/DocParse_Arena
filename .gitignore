@@ -30,6 +30,9 @@ backend/sample_docs/*
 # Claude Code
 .claude/
 
+# Temp docs
+docs/temp/
+
 # Misc
 todo.md
 temp.md
