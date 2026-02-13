@@ -1,4 +1,4 @@
-.PHONY: build up down logs clean restart seed
+.PHONY: build up down logs logs-app clean restart seed
 
 # Build Docker images
 build:
@@ -20,13 +20,9 @@ down:
 logs:
 	docker compose logs -f
 
-# View backend logs only
-logs-backend:
-	docker compose logs -f backend
-
-# View frontend logs only
-logs-frontend:
-	docker compose logs -f frontend
+# View service logs only
+logs-app:
+	docker compose logs -f ocr-arena
 
 # Restart all services
 restart:
@@ -34,7 +30,7 @@ restart:
 
 # Seed the database with default models
 seed:
-	docker compose exec backend uv run python seed_db.py
+	docker compose exec ocr-arena uv run python seed_db.py
 
 # Remove containers and volumes
 clean:

@@ -2,7 +2,7 @@ FROM python:3.13-slim AS base
 
 # Install system dependencies
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends poppler-utils && \
+    apt-get install -y --no-install-recommends libmagic1 && \
     rm -rf /var/lib/apt/lists/*
 
 # Install uv

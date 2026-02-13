@@ -71,14 +71,23 @@ async def _resolve_prompt(db: AsyncSession, model: OcrModel) -> str:
 # Config keys used internally, must NOT be passed to provider APIs
 _INTERNAL_CONFIG_KEYS = {"postprocessor"}
 
+# Allowed config keys that can be passed to provider APIs
+_ALLOWED_CONFIG_KEYS = {"temperature", "max_tokens", "max_completion_tokens", "top_p", "top_k", "seed"}
+
+
+def resolve_prompt(model, custom_prompt: str = "") -> str:
+    """Resolve the OCR prompt for a model (checks VLM registry for recommended prompts)."""
+    return _resolve_prompt(model, custom_prompt)
+
 
 def get_provider(provider_name: str, model_id: str, api_key: str = "", base_url: str = "", extra_config: dict | None = None) -> OcrProvider:
     provider_cls = PROVIDER_MAP.get(provider_name)
     if not provider_cls:
         raise ValueError(f"Unknown provider: {provider_name}")
-    # Strip internal keys that providers don't understand
+    # Strip internal keys and only allow whitelisted keys
     if extra_config:
-        extra_config = {k: v for k, v in extra_config.items() if k not in _INTERNAL_CONFIG_KEYS}
+        extra_config = {k: v for k, v in extra_config.items()
+                        if k not in _INTERNAL_CONFIG_KEYS and k in _ALLOWED_CONFIG_KEYS}
     return provider_cls(model_id=model_id, api_key=api_key, base_url=base_url, extra_config=extra_config)
 
 

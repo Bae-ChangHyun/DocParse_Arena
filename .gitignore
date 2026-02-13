@@ -26,6 +26,9 @@ backend/.env
 backend/sample_docs/*
 !backend/sample_docs/.gitkeep
 
+# Claude Code
+.claude/
+
 # Misc
 todo.md
 temp.md

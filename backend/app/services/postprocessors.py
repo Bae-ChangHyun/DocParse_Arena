@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
 
 # Matches opening code fence: ```markdown, ```md, ```html, ```json, ``` etc.
 _CODE_FENCE_OPEN_RE = re.compile(r"^```\w*\s*$", re.MULTILINE)
@@ -152,7 +153,7 @@ def dots_json_to_md(text: str) -> str:
 
 # ── Registry of available postprocessors ──────────────────
 
-POSTPROCESSORS: dict[str, callable] = {
+POSTPROCESSORS: dict[str, Callable[[str], str]] = {
     "deepseek_clean": deepseek_clean,
     "lighton_clean": lighton_clean,
     "dots_json_to_md": dots_json_to_md,

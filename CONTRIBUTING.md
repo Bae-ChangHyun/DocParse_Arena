@@ -27,14 +27,14 @@ Thank you for your interest in contributing! This document provides guidelines f
 
 ## Development Workflow
 
-1. Create a feature branch from `dev`:
+1. Create a feature branch from `main`:
    ```bash
-   git checkout -b feature/your-feature dev
+   git checkout -b feature/your-feature main
    ```
 2. Make your changes
 3. Test your changes locally
 4. Commit with clear messages
-5. Push and open a Pull Request against the `dev` branch
+5. Push and open a Pull Request against the `main` branch
 
 ## Code Style
 

@@ -24,7 +24,8 @@ router = APIRouter(prefix="/api/battle", tags=["battle"])
 # ── In-memory file cache (no disk writes for uploads) ────────
 _battle_file_cache: dict[str, tuple[bytes, str, float]] = {}  # battle_id -> (data, mime, created_at)
 _CACHE_TTL = 1800  # 30 minutes
-_MAX_CACHE_ENTRIES = 100
+_MAX_CACHE_ENTRIES = 50
+_MAX_CACHE_SIZE_BYTES = 500 * 1024 * 1024  # 500 MB total limit
 
 
 def _cleanup_stale_cache() -> None:
@@ -32,9 +33,15 @@ def _cleanup_stale_cache() -> None:
     expired = [k for k, (_, _, ts) in _battle_file_cache.items() if now - ts > _CACHE_TTL]
     for k in expired:
         del _battle_file_cache[k]
-    # Evict oldest entries if over limit
+    # Evict oldest entries if over entry limit
     while len(_battle_file_cache) > _MAX_CACHE_ENTRIES:
         oldest_key = min(_battle_file_cache, key=lambda k: _battle_file_cache[k][2])
+        del _battle_file_cache[oldest_key]
+    # Evict oldest entries if over size limit
+    total_size = sum(len(data) for data, _, _ in _battle_file_cache.values())
+    while total_size > _MAX_CACHE_SIZE_BYTES and _battle_file_cache:
+        oldest_key = min(_battle_file_cache, key=lambda k: _battle_file_cache[k][2])
+        total_size -= len(_battle_file_cache[oldest_key][0])
         del _battle_file_cache[oldest_key]
 
 

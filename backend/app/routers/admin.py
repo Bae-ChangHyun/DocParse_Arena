@@ -41,7 +41,7 @@ async def auth_status():
 async def admin_login(data: AdminLoginRequest):
     settings = get_settings()
     if not settings.admin_password:
-        return {"token": ""}
+        raise HTTPException(status_code=403, detail="Admin password not configured")
     if not hmac.compare_digest(data.password, settings.admin_password):
         raise HTTPException(status_code=401, detail="Invalid password")
     token = create_token()
@@ -311,16 +311,29 @@ async def _test_api_key(ptype: str, api_key: str) -> tuple[bool, str]:
 
 def _is_private_url(url: str) -> bool:
     """Check if a URL resolves to a private/loopback IP address."""
+    import socket
+
     try:
         parsed = urlparse(url)
         hostname = parsed.hostname
         if not hostname:
             return True
-        addr = ipaddress.ip_address(hostname)
-        return addr.is_private or addr.is_loopback or addr.is_link_local
-    except ValueError:
-        # hostname is a domain name, not an IP — allow it
-        return False
+        try:
+            addr = ipaddress.ip_address(hostname)
+            return addr.is_private or addr.is_loopback or addr.is_link_local
+        except ValueError:
+            # hostname is a domain name — resolve via DNS and check
+            try:
+                resolved = socket.getaddrinfo(hostname, None)
+                for _, _, _, _, sockaddr in resolved:
+                    ip = ipaddress.ip_address(sockaddr[0])
+                    if ip.is_private or ip.is_loopback or ip.is_link_local:
+                        return True
+                return False
+            except socket.gaierror:
+                return True  # DNS resolution failed — block
+    except Exception:
+        return True
 
 
 async def _test_url(base_url: str, ptype: str, api_key: str = "") -> tuple[bool, str]:

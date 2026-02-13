@@ -85,7 +85,7 @@ async function handler(request: NextRequest) {
       statusText: response.statusText,
       headers: responseHeaders,
     });
-  } catch (error) {
+  } catch {
     return new Response(JSON.stringify({ error: "Backend connection failed" }), {
       status: 502,
       headers: { "Content-Type": "application/json" },

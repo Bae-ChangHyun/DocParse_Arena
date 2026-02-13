@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.database import get_db, OcrModel
 from app.models.schemas import PlaygroundResponse, OcrModelOut
-from app.services.ocr_service import run_ocr, _resolve_prompt
+from app.services.ocr_service import run_ocr, resolve_prompt
 from app.ocr_providers.base import DEFAULT_OCR_PROMPT
 from app.config import get_settings
 from app.utils.mime import extension_to_mime, ALLOWED_EXTENSIONS
@@ -30,7 +30,7 @@ async def get_resolved_prompt(model_id: str, db: AsyncSession = Depends(get_db))
     if not model:
         raise HTTPException(status_code=404, detail="Model not found")
 
-    prompt = await _resolve_prompt(db, model)
+    prompt = await resolve_prompt(db, model)
 
     if prompt:
         # Determine source
