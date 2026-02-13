@@ -17,12 +17,14 @@ from app.services.elo_service import calculate_elo_change
 from app.config import get_settings
 from app.utils.mime import extension_to_mime, ALLOWED_EXTENSIONS
 from app.utils.file_validation import validate_file_content
+from app.utils.error_sanitizer import sanitize_error
 
 router = APIRouter(prefix="/api/battle", tags=["battle"])
 
 # ── In-memory file cache (no disk writes for uploads) ────────
 _battle_file_cache: dict[str, tuple[bytes, str, float]] = {}  # battle_id -> (data, mime, created_at)
 _CACHE_TTL = 1800  # 30 minutes
+_MAX_CACHE_ENTRIES = 100
 
 
 def _cleanup_stale_cache() -> None:
@@ -30,6 +32,10 @@ def _cleanup_stale_cache() -> None:
     expired = [k for k, (_, _, ts) in _battle_file_cache.items() if now - ts > _CACHE_TTL]
     for k in expired:
         del _battle_file_cache[k]
+    # Evict oldest entries if over limit
+    while len(_battle_file_cache) > _MAX_CACHE_ENTRIES:
+        oldest_key = min(_battle_file_cache, key=lambda k: _battle_file_cache[k][2])
+        del _battle_file_cache[oldest_key]
 
 
 @router.post("/start", response_model=BattleStartResponse)
@@ -174,9 +180,9 @@ async def stream_battle(battle_id: str, db: AsyncSession = Depends(get_db)):
                 return
             except Exception as e:
                 latency = int((_time_module.time() - start) * 1000)
-                results[key] = {"text": "", "latency_ms": latency, "error": str(e)}
+                results[key] = {"text": "", "latency_ms": latency, "error": sanitize_error(e)}
                 try:
-                    await queue.put((done_event, json.dumps({"latency_ms": latency, "error": str(e)})))
+                    await queue.put((done_event, json.dumps({"latency_ms": latency, "error": sanitize_error(e)})))
                 except asyncio.CancelledError:
                     return
 

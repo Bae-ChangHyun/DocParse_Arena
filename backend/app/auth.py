@@ -32,7 +32,10 @@ def verify_token(token: str) -> bool:
 async def require_admin(request: Request) -> None:
     settings = get_settings()
     if not settings.admin_password:
-        return  # No password set = auth disabled
+        raise HTTPException(
+            status_code=403,
+            detail="Admin access disabled. Set ADMIN_PASSWORD in .env",
+        )
 
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):

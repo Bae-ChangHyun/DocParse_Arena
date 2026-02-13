@@ -28,4 +28,5 @@ backend/sample_docs/*
 
 # Misc
 todo.md
+temp.md
 *.pyc

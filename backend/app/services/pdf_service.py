@@ -1,23 +1,29 @@
-"""Convert PDF files to a list of page images using PyMuPDF (fitz)."""
+"""Convert PDF files to a list of page images using pypdfium2."""
 import io
 import asyncio
-import fitz  # PyMuPDF
+import pypdfium2 as pdfium
 
 
 def pdf_to_images(pdf_data: bytes, dpi: float = 216.0, max_pages: int = 50) -> list[tuple[bytes, str]]:
     """Convert PDF bytes to a list of (png_bytes, mime_type) per page."""
-    doc = fitz.open(stream=pdf_data, filetype="pdf")
-    if doc.page_count > max_pages:
-        doc.close()
-        raise ValueError(f"PDF has {doc.page_count} pages (max {max_pages})")
-    zoom = dpi / 72.0
-    matrix = fitz.Matrix(zoom, zoom)
+    pdf = pdfium.PdfDocument(pdf_data)
+    n_pages = len(pdf)
+    if n_pages > max_pages:
+        pdf.close()
+        raise ValueError(
+            f"PDF has {n_pages} pages, exceeding the maximum of {max_pages}. "
+            "Please reduce the number of pages."
+        )
+    scale = dpi / 72.0
     pages = []
-    for page in doc:
-        pixmap = page.get_pixmap(matrix=matrix, alpha=False)
-        png_bytes = pixmap.tobytes("png")
-        pages.append((png_bytes, "image/png"))
-    doc.close()
+    for i in range(n_pages):
+        page = pdf[i]
+        bitmap = page.render(scale=scale)
+        pil_image = bitmap.to_pil()
+        buf = io.BytesIO()
+        pil_image.save(buf, format="PNG")
+        pages.append((buf.getvalue(), "image/png"))
+    pdf.close()
     return pages
 
 

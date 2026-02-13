@@ -7,7 +7,7 @@ from functools import lru_cache
 
 class Settings(BaseSettings):
     app_name: str = "DocParse Arena"
-    debug: bool = True
+    debug: bool = False
 
     database_url: str = "sqlite+aiosqlite:///./ocr_arena.db"
 
