@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.database import get_db, OcrModel, Battle
+from app.models.database import get_db, OcrModel, Battle, ProviderSetting
 from app.models.schemas import LeaderboardEntry, HeadToHeadEntry
 
 router = APIRouter(prefix="/api/leaderboard", tags=["leaderboard"])
@@ -14,6 +14,14 @@ async def get_leaderboard(db: AsyncSession = Depends(get_db)):
         select(OcrModel).where(OcrModel.is_active == True).order_by(OcrModel.elo.desc())
     )
     models = result.scalars().all()
+
+    # Resolve provider IDs to display names
+    provider_ids = {m.provider for m in models}
+    prov_result = await db.execute(
+        select(ProviderSetting.id, ProviderSetting.display_name)
+        .where(ProviderSetting.id.in_(provider_ids))
+    )
+    provider_names = {row.id: row.display_name for row in prov_result.all()}
 
     entries = []
     for rank, model in enumerate(models, 1):
@@ -27,7 +35,7 @@ async def get_leaderboard(db: AsyncSession = Depends(get_db)):
                 name=model.name,
                 display_name=model.display_name,
                 icon=model.icon,
-                provider=model.provider,
+                provider=provider_names.get(model.provider, model.provider),
                 elo=model.elo,
                 wins=model.wins,
                 losses=model.losses,
