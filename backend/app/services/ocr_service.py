@@ -75,9 +75,9 @@ _INTERNAL_CONFIG_KEYS = {"postprocessor"}
 _ALLOWED_CONFIG_KEYS = {"temperature", "max_tokens", "max_completion_tokens", "top_p", "top_k", "seed"}
 
 
-def resolve_prompt(model, custom_prompt: str = "") -> str:
-    """Resolve the OCR prompt for a model (checks VLM registry for recommended prompts)."""
-    return _resolve_prompt(model, custom_prompt)
+async def resolve_prompt(db: AsyncSession, model: OcrModel) -> str:
+    """Resolve the OCR prompt for a model (public wrapper for _resolve_prompt)."""
+    return await _resolve_prompt(db, model)
 
 
 def get_provider(provider_name: str, model_id: str, api_key: str = "", base_url: str = "", extra_config: dict | None = None) -> OcrProvider:

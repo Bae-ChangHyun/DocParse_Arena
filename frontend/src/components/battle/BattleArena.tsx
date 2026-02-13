@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
+import { toast } from "sonner";
 import DocumentUpload from "./DocumentUpload";
 import DocumentViewer from "./DocumentViewer";
 import ModelResult from "./ModelResult";
@@ -58,16 +59,22 @@ const initialState: BattleState = {
 export default function BattleArena() {
   const [state, setState] = useState<BattleState>(initialState);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const documentUrlRef = useRef<string | null>(null);
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    documentUrlRef.current = state.documentUrl;
+  }, [state.documentUrl]);
 
   useEffect(() => {
     return () => {
       eventSourceRef.current?.close();
       // Revoke blob URL on unmount
-      if (state.documentUrl?.startsWith("blob:")) {
-        URL.revokeObjectURL(state.documentUrl);
+      if (documentUrlRef.current?.startsWith("blob:")) {
+        URL.revokeObjectURL(documentUrlRef.current);
       }
     };
-  }, [state.documentUrl]);
+  }, []);
 
   const handleStartBattle = useCallback(async (file?: File, documentName?: string) => {
     setState({ ...initialState, isStarting: true });
@@ -190,7 +197,7 @@ export default function BattleArena() {
       const file = new File([blob], name, { type: blob.type });
       await handleStartBattle(file);
     } catch (err) {
-      console.error("Failed to fetch random document:", err);
+      toast.error("Failed to fetch random document", { description: err instanceof Error ? err.message : undefined });
       setState((prev) => ({ ...prev, isStarting: false }));
     }
   }, [handleStartBattle]);
@@ -202,7 +209,7 @@ export default function BattleArena() {
       const result = await voteBattle(state.battleId, winner);
       setState((prev) => ({ ...prev, voteResult: result, isVoting: false }));
     } catch (err) {
-      console.error("Vote failed:", err);
+      toast.error("Vote failed", { description: err instanceof Error ? err.message : undefined });
       setState((prev) => ({ ...prev, isVoting: false }));
     }
   }, [state.battleId]);

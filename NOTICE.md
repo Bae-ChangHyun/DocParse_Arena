@@ -19,7 +19,7 @@ This project uses the following open-source libraries:
 | SQLAlchemy | MIT |
 | Pydantic | MIT |
 | pypdfium2 | BSD-3-Clause / Apache-2.0 |
-| Pillow | HPND |
+| Pillow | MIT-CMU |
 | uvicorn | BSD-3-Clause |
 | httpx | BSD-3-Clause |
 | anthropic | MIT |
@@ -55,5 +55,7 @@ This project uses the following open-source libraries:
 | rehype-sanitize | MIT |
 | remark-gfm | MIT |
 | remark-math | MIT |
+| rehype-katex | MIT |
+| @tailwindcss/typography | MIT |
 
 For complete license texts, refer to each package's repository.

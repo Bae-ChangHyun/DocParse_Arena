@@ -79,7 +79,13 @@ async def start_battle(
     else:
         raise HTTPException(status_code=400, detail="Provide a file or document_name")
 
-    models = await select_random_models(db, 2)
+    try:
+        models = await select_random_models(db, 2)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Not enough active models. Please activate at least 2 models in Settings.",
+        )
 
     battle_id = str(uuid.uuid4())
 

@@ -18,8 +18,6 @@ This project is inspired by the arena-style evaluation method of [LMSYS Chatbot 
 
 ## Screenshots
 
-> **Note:** Screenshots are being updated to reflect the latest UI. Some images may not match the current version.
-
 | Battle - Blind Comparison | Leaderboard |
 |:---:|:---:|
 | ![Battle](docs/screenshots/battle.png) | ![Leaderboard](docs/screenshots/leaderboard.png) |
@@ -77,7 +75,7 @@ The easiest way to get DocParse Arena running is using Docker Compose.
    ```
 4. Access the platform:
    - Frontend: http://localhost:3000
-   - Backend API: http://localhost:8000/docs
+   - Backend API (manual setup only): http://localhost:8000/docs
 
 ### Manual Setup
 
