@@ -1,17 +1,20 @@
-import logging
+import sys
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from loguru import logger
 
 from app.config import get_settings
 from app.models.database import init_db
 from app.routers import battle, leaderboard, playground, documents, admin
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+# Configure loguru: remove default handler, add custom format
+logger.remove()
+logger.add(
+    sys.stderr,
+    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> [<level>{level}</level>] <cyan>{name}</cyan>: {message}",
+    level="INFO",
 )
-logger = logging.getLogger("docparse-arena")
 
 
 @asynccontextmanager

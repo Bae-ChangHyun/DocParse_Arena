@@ -1,5 +1,6 @@
 """Seed the database with initial OCR models and provider settings."""
 import asyncio
+from loguru import logger
 from app.models.database import init_db, async_session, OcrModel, ProviderSetting, PromptSetting
 from sqlalchemy import select
 
@@ -96,11 +97,11 @@ async def seed():
                 select(ProviderSetting).where(ProviderSetting.id == pdata["id"])
             )
             if existing.scalar_one_or_none():
-                print(f"  Skipping provider {pdata['id']} (already exists)")
+                logger.debug(f"Skipping provider {pdata['id']} (already exists)")
                 continue
             ps = ProviderSetting(**pdata)
             db.add(ps)
-            print(f"  Added provider {pdata['id']}")
+            logger.info(f"Added provider {pdata['id']}")
 
         # Seed models
         for model_data in SEED_MODELS:
@@ -108,11 +109,11 @@ async def seed():
                 select(OcrModel).where(OcrModel.id == model_data["id"])
             )
             if existing.scalar_one_or_none():
-                print(f"  Skipping {model_data['name']} (already exists)")
+                logger.debug(f"Skipping {model_data['name']} (already exists)")
                 continue
             model = OcrModel(**model_data)
             db.add(model)
-            print(f"  Added {model_data['name']}")
+            logger.info(f"Added {model_data['name']}")
 
         # Seed default prompt
         existing_prompt = await db.execute(
@@ -135,12 +136,12 @@ async def seed():
                 is_default=True,
             )
             db.add(default_prompt)
-            print("  Added default prompt")
+            logger.info("Added default prompt")
         else:
-            print("  Skipping default prompt (already exists)")
+            logger.debug("Skipping default prompt (already exists)")
 
         await db.commit()
-    print("Seed complete!")
+    logger.success("Seed complete!")
 
 
 if __name__ == "__main__":
