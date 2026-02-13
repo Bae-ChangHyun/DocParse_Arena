@@ -15,6 +15,12 @@ ELO 랭킹 기반 블라인드 배틀, 실시간 스트리밍, Docker 원클릭 
 > **AI로 개발** — 이 프로젝트의 90% 이상이 [Claude Code](https://docs.anthropic.com/en/docs/claude-code)를 사용하여 개발되었습니다.
 > 아키텍처 설계부터 구현, 테스트, Docker 배포까지.
 
+## 데모
+
+<p align="center">
+  <img src="docs/demo.gif" alt="DocParse Arena 데모" width="800">
+</p>
+
 ## 스크린샷
 
 | 배틀 - 블라인드 비교 | 리더보드 |

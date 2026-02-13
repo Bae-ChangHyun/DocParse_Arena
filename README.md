@@ -15,6 +15,12 @@ ELO-ranked blind battles, real-time streaming, Docker one-click deploy.
 > **Built with AI** — Over 90% of this project was developed using [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
 > From architecture design to implementation, testing, and Docker deployment.
 
+## Demo
+
+<p align="center">
+  <img src="docs/demo.gif" alt="DocParse Arena Demo" width="800">
+</p>
+
 ## Screenshots
 
 | Battle - Blind Comparison | Leaderboard |
