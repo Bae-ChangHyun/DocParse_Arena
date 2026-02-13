@@ -1,5 +1,5 @@
 services:
-  ocr-arena:
+  docparse-arena:
     build: .
     ports:
       - "3000:3000"
@@ -8,7 +8,7 @@ services:
       - ./backend/sample_docs:/app/backend/sample_docs
     env_file: .env
     environment:
-      - DATABASE_URL=sqlite+aiosqlite:///./data/ocr_arena.db
+      - DATABASE_URL=sqlite+aiosqlite:///./data/docparse_arena.db
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/"]
       interval: 30s

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-# OCR Arena - Frontend & Backend simultaneous launcher
+# DocParse Arena - Frontend & Backend simultaneous launcher
 # Usage: ./run.sh [--backend-port PORT] [--frontend-port PORT]
 #   Default: backend=8000, frontend=3000
 
@@ -59,7 +59,7 @@ for PORT in $BACKEND_PORT $FRONTEND_PORT; do
   fi
 done
 
-echo "=== OCR Arena ==="
+echo "=== DocParse Arena ==="
 echo "Backend:  http://localhost:${BACKEND_PORT}"
 echo "Frontend: http://localhost:${FRONTEND_PORT}"
 echo "Press Ctrl+C to stop"

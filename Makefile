@@ -22,7 +22,7 @@ logs:
 
 # View service logs only
 logs-app:
-	docker compose logs -f ocr-arena
+	docker compose logs -f docparse-arena
 
 # Restart all services
 restart:
@@ -30,7 +30,7 @@ restart:
 
 # Seed the database with default models
 seed:
-	docker compose exec ocr-arena uv run python seed_db.py
+	docker compose exec docparse-arena uv run python seed_db.py
 
 # Remove containers and volumes
 clean:

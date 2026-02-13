@@ -203,7 +203,7 @@ git push origin feature/your-feature
 
 - Set a strong `ADMIN_PASSWORD` in `.env` to protect the admin UI.
 - Configure `CORS_ORIGINS` to restrict API access when hosting publicly.
-- API keys are stored in the database — keep `data/ocr_arena.db` secured and never commit it.
+- API keys are stored in the database — keep `data/docparse_arena.db` secured and never commit it.
 - Uploaded files are validated with path traversal guards, size limits, and PDF page caps.
 
 ## License
