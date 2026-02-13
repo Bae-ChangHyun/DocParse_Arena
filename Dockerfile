@@ -29,7 +29,6 @@ FROM python:3.13-slim AS production
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    poppler-utils \
     libmagic1 \
     nodejs \
     curl \
