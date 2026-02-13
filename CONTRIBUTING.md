@@ -7,8 +7,8 @@ Thank you for your interest in contributing! This document provides guidelines f
 1. **Fork** the repository
 2. **Clone** your fork:
    ```bash
-   git clone https://github.com/<your-username>/docparse-arena.git
-   cd docparse-arena
+   git clone https://github.com/<your-username>/DocParse_Arena.git
+   cd DocParse_Arena
    ```
 3. **Set up the development environment**:
    ```bash

@@ -5,7 +5,7 @@
 If you discover a security vulnerability, please report it responsibly:
 
 1. **Do NOT open a public GitHub issue.**
-2. Use [GitHub Security Advisories](https://github.com/Bae-ChangHyun/docparse-arena/security/advisories/new) to report privately.
+2. Use [GitHub Security Advisories](https://github.com/Bae-ChangHyun/DocParse_Arena/security/advisories/new) to report privately.
 3. Include:
    - Description of the vulnerability
    - Steps to reproduce

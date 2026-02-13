@@ -6,7 +6,11 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-009688.svg)](https://fastapi.tiangolo.com/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](https://www.docker.com/)
 
+**English** | [한국어](README.ko.md)
+
 A self-hosted, blind-test platform for evaluating document parsing (OCR/VLM) models with ELO rankings.
+
+> **Built with AI** — Over 90% of this project was developed using [Claude Code](https://docs.anthropic.com/en/docs/claude-code), Anthropic's agentic coding tool. From architecture design to implementation, testing, and Docker deployment — Claude Code served as the primary development partner throughout the entire process.
 
 Compare document parsing models side-by-side through blind battles, vote for the better result, and build your own private leaderboard. Supports commercial APIs (Claude, GPT, Gemini, Mistral) and self-hosted models (Ollama, vLLM, any OpenAI-compatible endpoint).
 
@@ -61,8 +65,8 @@ The easiest way to get DocParse Arena running is using Docker Compose.
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/Bae-ChangHyun/docparse-arena.git
-   cd docparse-arena
+   git clone https://github.com/Bae-ChangHyun/DocParse_Arena.git
+   cd DocParse_Arena
    ```
 2. Set up your environment variables:
    ```bash
@@ -87,8 +91,8 @@ The easiest way to get DocParse Arena running is using Docker Compose.
 
 #### 1. Installation
 ```bash
-git clone https://github.com/Bae-ChangHyun/docparse-arena.git
-cd docparse-arena
+git clone https://github.com/Bae-ChangHyun/DocParse_Arena.git
+cd DocParse_Arena
 
 # Backend setup
 cd backend
@@ -186,7 +190,7 @@ Contributions are welcome! Here are some ways to get involved:
 - **Add a VLM to the registry** — Know a model that works well for document parsing? Add it to `backend/app/vlm_registry.py`.
 - **Add a new provider** — Implement the `OCRProviderBase` interface in `backend/app/ocr_providers/`.
 - **Improve the UI** — Frontend lives in `frontend/src/` with shadcn/ui components.
-- **Report bugs** — Open an [issue](https://github.com/Bae-ChangHyun/docparse-arena/issues).
+- **Report bugs** — Open an [issue](https://github.com/Bae-ChangHyun/DocParse_Arena/issues).
 
 ### Development Workflow
 
