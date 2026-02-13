@@ -141,19 +141,6 @@ VLM_REGISTRY: dict[str, dict] = {
         ],
     },
 
-    # ── GLM-OCR ───────────────────────────────────────────
-    "glm-ocr": {
-        "display_name": "GLM-OCR",
-        "recommended_prompt": "Convert the document to markdown.",
-        "postprocessor": None,
-        "notes": "GLM-OCR by zai-org. Direct Markdown output.",
-        "recommended_config": {"temperature": 0.0},
-        "match_patterns": [
-            "glm-ocr",
-            "glmocr",
-            "zai-org/glm-ocr",
-        ],
-    },
 }
 
 

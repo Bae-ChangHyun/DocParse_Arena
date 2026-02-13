@@ -5,7 +5,7 @@
 [![Next.js 15](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-009688.svg)](https://fastapi.tiangolo.com/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](https://www.docker.com/)
-[![Built with Claude Code](https://img.shields.io/badge/Claude-D97757?style=for-the-badge&logo=claude&logoColor=white)](https://docs.anthropic.com/en/docs/claude-code)
+[![Claude Code](https://img.shields.io/badge/Claude%20Code-D97757.svg?logo=claude&logoColor=white)](https://docs.anthropic.com/en/docs/claude-code)
 
 **English** | [한국어](README.ko.md)
 
@@ -109,24 +109,16 @@ These are opt-in — you can accept or customize them.
 | PaddleOCR-VL | [PaddlePaddle](https://github.com/PaddlePaddle/PaddleOCR) | — | Multi-task: OCR, Table, Formula, Chart |
 | LightOnOCR-2-1B | [lightonai](https://huggingface.co/lightonai/lightonocr-2-1b) | `lighton_clean` | 1B model, ~5.71 pages/sec on H100 |
 | Nanonets-OCR | [nanonets](https://huggingface.co/nanonets/Nanonets-OCR-s) | — | HTML tables, LaTeX equations, semantic tags |
-| GLM-OCR | [zai-org](https://huggingface.co/zai-org/GLM-OCR) | — | Direct Markdown output |
 
 > Refer to each model's official repository for detailed usage and licensing information.
 
-### Extra Kwargs
+### Prompt & Model Settings
 
-In **Settings > Models > Edit**, pass additional API parameters as JSON:
-
-```json
-{ "max_completion_tokens": 4096, "temperature": 0.7 }
-```
-
-### Prompt Customization
-
-**Settings > Prompts** supports global defaults and per-model overrides.
+- **Settings > Prompts** — Global defaults and per-model prompt overrides.
+- **Settings > Models > Edit** — Pass additional API parameters as JSON (e.g., `{"max_completion_tokens": 4096}`).
 
 <details>
-<summary><strong>API Endpoints</strong></summary>
+<summary><strong>API Reference</strong></summary>
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|

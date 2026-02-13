@@ -5,7 +5,7 @@
 [![Next.js 15](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-009688.svg)](https://fastapi.tiangolo.com/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](https://www.docker.com/)
-[![Built with Claude Code](https://img.shields.io/badge/Claude-D97757?style=for-the-badge&logo=claude&logoColor=white)](https://docs.anthropic.com/en/docs/claude-code)
+[![Claude Code](https://img.shields.io/badge/Claude%20Code-D97757.svg?logo=claude&logoColor=white)](https://docs.anthropic.com/en/docs/claude-code)
 
 [English](README.md) | **한국어**
 
@@ -109,24 +109,16 @@ cd frontend && pnpm dev &
 | PaddleOCR-VL | [PaddlePaddle](https://github.com/PaddlePaddle/PaddleOCR) | — | 다중 태스크: OCR, Table, Formula, Chart |
 | LightOnOCR-2-1B | [lightonai](https://huggingface.co/lightonai/lightonocr-2-1b) | `lighton_clean` | 1B 모델, H100에서 ~5.71 pages/sec |
 | Nanonets-OCR | [nanonets](https://huggingface.co/nanonets/Nanonets-OCR-s) | — | HTML 테이블, LaTeX 수식, 시멘틱 태그 |
-| GLM-OCR | [zai-org](https://huggingface.co/zai-org/GLM-OCR) | — | 직접 Markdown 출력 |
 
 > 각 모델의 상세 사용법과 라이선스는 공식 레포지토리를 참조하세요.
 
-### Extra Kwargs
+### 프롬프트 및 모델 설정
 
-**Settings > Models > Edit**에서 추가 API 파라미터를 JSON으로 전달:
-
-```json
-{ "max_completion_tokens": 4096, "temperature": 0.7 }
-```
-
-### 프롬프트 커스터마이즈
-
-**Settings > Prompts**에서 글로벌 기본값과 모델별 오버라이드를 설정할 수 있습니다.
+- **Settings > Prompts** — 글로벌 기본값 및 모델별 프롬프트 오버라이드.
+- **Settings > Models > Edit** — 추가 API 파라미터를 JSON으로 전달 (예: `{"max_completion_tokens": 4096}`).
 
 <details>
-<summary><strong>API 엔드포인트</strong></summary>
+<summary><strong>API 레퍼런스</strong></summary>
 
 | 메서드 | 엔드포인트 | 설명 |
 |--------|----------|------|
