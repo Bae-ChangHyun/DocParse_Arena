@@ -192,6 +192,13 @@ export default function BattleArena() {
     setState((prev) => ({ ...prev, isStarting: true }));
     try {
       const res = await fetch(`${getApiBase()}/api/documents/random`);
+      if (!res.ok) {
+        throw new Error(
+          res.status === 404
+            ? "No sample documents available. Upload a file instead."
+            : `Server error (${res.status})`
+        );
+      }
       const name = res.headers.get("X-Document-Name") || "random.png";
       const blob = await res.blob();
       const file = new File([blob], name, { type: blob.type });
