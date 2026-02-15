@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FileText, Trophy, FlaskConical } from "lucide-react";
+import { Swords, Trophy, FlaskConical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function Home() {
@@ -8,19 +8,19 @@ export default function Home() {
       <div className="text-center max-w-xl">
         <div className="flex items-center justify-center gap-3 mb-6">
           <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
-            <FileText className="h-6 w-6 text-primary" />
+            <Swords className="h-6 w-6 text-primary" />
           </div>
           <h1 className="text-3xl font-bold tracking-tight">DocParse Arena</h1>
         </div>
         <p className="text-muted-foreground mb-8 text-base leading-relaxed">
-          Compare document parsing models side-by-side in blind battles.
+          Self-hosted blind comparison for document parsing models.
           <br />
           Upload your documents, vote for the best result, and discover which model works best for you.
         </p>
         <div className="flex items-center justify-center gap-3">
           <Link href="/battle">
             <Button size="lg" className="gap-2">
-              <FileText className="h-4 w-4" />
+              <Swords className="h-4 w-4" />
               Start Battle
             </Button>
           </Link>

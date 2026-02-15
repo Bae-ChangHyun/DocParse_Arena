@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { FileText, FlaskConical, Trophy, Info, Menu, Settings } from "lucide-react";
+import { Swords, FlaskConical, Trophy, Info, Menu, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 const navItems = [
-  { href: "/battle", label: "Battle", icon: FileText },
+  { href: "/battle", label: "Battle", icon: Swords },
   { href: "/playground", label: "Playground", icon: FlaskConical },
   { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
   { href: "/about", label: "About", icon: Info },
@@ -25,7 +25,7 @@ export default function Header() {
       <div className="container flex h-14 items-center px-4 mx-auto">
         <Link href="/" className="flex items-center gap-2 font-bold text-lg mr-8">
           <div className="flex items-center justify-center h-7 w-7 rounded-md bg-primary text-primary-foreground">
-            <FileText className="h-4 w-4" />
+            <Swords className="h-4 w-4" />
           </div>
           <span>DocParse Arena</span>
         </Link>
