@@ -7,6 +7,11 @@ import DocumentViewer from "./DocumentViewer";
 import ModelResult from "./ModelResult";
 import VoteButtons from "./VoteButtons";
 import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "@/components/ui/resizable";
+import {
   startBattle,
   streamBattle,
   voteBattle,
@@ -251,45 +256,55 @@ export default function BattleArena() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-3.5rem)]">
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-2 p-2 min-h-0">
-        <div className="relative min-h-[200px] lg:min-h-0 border rounded-lg overflow-hidden">
-          {state.documentUrl ? (
-            <DocumentViewer imageUrl={state.documentUrl} documentName={state.documentName || undefined} />
-          ) : (
-            <div className="flex items-center justify-center h-full">
-              <span className="text-sm text-muted-foreground">Loading document...</span>
-            </div>
-          )}
-        </div>
+      <ResizablePanelGroup orientation="horizontal" className="flex-1 min-h-0 p-2">
+        <ResizablePanel defaultSize={33} minSize={15}>
+          <div className="relative h-full border rounded-lg overflow-hidden">
+            {state.documentUrl ? (
+              <DocumentViewer imageUrl={state.documentUrl} documentName={state.documentName || undefined} />
+            ) : (
+              <div className="flex items-center justify-center h-full">
+                <span className="text-sm text-muted-foreground">Loading document...</span>
+              </div>
+            )}
+          </div>
+        </ResizablePanel>
 
-        <div className="min-h-[300px] lg:min-h-0">
-          <ModelResult
-            label="Model A"
-            text={state.modelAText}
-            latencyMs={state.modelALatency}
-            isLoading={state.modelALoading}
-            isStreaming={state.modelAStreaming}
-            streamingText={state.modelAStreamText}
-            error={state.modelAError}
-            modelName={state.voteResult?.model_a.display_name}
-            eloChange={state.voteResult?.model_a_elo_change}
-          />
-        </div>
+        <ResizableHandle withHandle />
 
-        <div className="min-h-[300px] lg:min-h-0">
-          <ModelResult
-            label="Model B"
-            text={state.modelBText}
-            latencyMs={state.modelBLatency}
-            isLoading={state.modelBLoading}
-            isStreaming={state.modelBStreaming}
-            streamingText={state.modelBStreamText}
-            error={state.modelBError}
-            modelName={state.voteResult?.model_b.display_name}
-            eloChange={state.voteResult?.model_b_elo_change}
-          />
-        </div>
-      </div>
+        <ResizablePanel defaultSize={34} minSize={15}>
+          <div className="h-full px-1">
+            <ModelResult
+              label="Model A"
+              text={state.modelAText}
+              latencyMs={state.modelALatency}
+              isLoading={state.modelALoading}
+              isStreaming={state.modelAStreaming}
+              streamingText={state.modelAStreamText}
+              error={state.modelAError}
+              modelName={state.voteResult?.model_a.display_name}
+              eloChange={state.voteResult?.model_a_elo_change}
+            />
+          </div>
+        </ResizablePanel>
+
+        <ResizableHandle withHandle />
+
+        <ResizablePanel defaultSize={33} minSize={15}>
+          <div className="h-full">
+            <ModelResult
+              label="Model B"
+              text={state.modelBText}
+              latencyMs={state.modelBLatency}
+              isLoading={state.modelBLoading}
+              isStreaming={state.modelBStreaming}
+              streamingText={state.modelBStreamText}
+              error={state.modelBError}
+              modelName={state.voteResult?.model_b.display_name}
+              eloChange={state.voteResult?.model_b_elo_change}
+            />
+          </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
 
       <VoteButtons
         onVote={handleVote}

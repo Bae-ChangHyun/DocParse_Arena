@@ -14,7 +14,6 @@ import { preprocessOcrText } from "@/lib/markdown-utils";
 import { Copy, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
 const NodeRenderer = lazy(() => import("markstream-react").then((m) => ({ default: m.NodeRenderer })));
 
@@ -91,13 +90,13 @@ export default function ModelResult({
           <p className="text-sm text-destructive text-center">{error}</p>
         </div>
       ) : isStreaming && streamingText ? (
-        <ScrollArea className="flex-1 min-h-0">
+        <div className="flex-1 min-h-0 overflow-auto">
           <div className="p-4 prose prose-sm max-w-none dark:prose-invert">
             <Suspense fallback={<pre className="text-xs font-mono whitespace-pre-wrap break-words">{streamingText}</pre>}>
               <NodeRenderer content={streamingText} final={false} />
             </Suspense>
           </div>
-        </ScrollArea>
+        </div>
       ) : text ? (
         <Tabs defaultValue="rendered" className="flex-1 flex flex-col min-h-0">
           <TabsList className="mx-2 mt-2 w-fit">
@@ -105,19 +104,19 @@ export default function ModelResult({
             <TabsTrigger value="raw">Raw</TabsTrigger>
           </TabsList>
           <TabsContent value="rendered" className="flex-1 min-h-0 m-0">
-            <ScrollArea className="h-full">
+            <div className="h-full overflow-auto">
               <div className="p-4 prose prose-sm max-w-none dark:prose-invert">
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm, remarkMath]}
                   rehypePlugins={[rehypeKatex, rehypeRaw, [rehypeSanitize, sanitizeSchema]]}
                 >{preprocessOcrText(text)}</ReactMarkdown>
               </div>
-            </ScrollArea>
+            </div>
           </TabsContent>
           <TabsContent value="raw" className="flex-1 min-h-0 m-0">
-            <ScrollArea className="h-full">
+            <div className="h-full overflow-auto">
               <pre className="p-4 text-xs font-mono whitespace-pre-wrap break-words">{text}</pre>
-            </ScrollArea>
+            </div>
           </TabsContent>
         </Tabs>
       ) : (
