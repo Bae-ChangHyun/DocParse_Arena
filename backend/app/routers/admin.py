@@ -41,7 +41,7 @@ async def auth_status():
 async def admin_login(data: AdminLoginRequest):
     settings = get_settings()
     if not settings.admin_password:
-        raise HTTPException(status_code=403, detail="Admin password not configured")
+        raise HTTPException(status_code=400, detail="No password is set. Admin access is open.")
     if not hmac.compare_digest(data.password, settings.admin_password):
         raise HTTPException(status_code=401, detail="Invalid password")
     token = create_token()

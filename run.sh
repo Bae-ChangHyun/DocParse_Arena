@@ -67,7 +67,7 @@ echo ""
 
 # Backend
 cd "$SCRIPT_DIR/backend"
-uv run uvicorn app.main:app --reload --port "$BACKEND_PORT" &
+uv run python -m uvicorn app.main:app --reload --port "$BACKEND_PORT" &
 BACKEND_PID=$!
 
 # Frontend
