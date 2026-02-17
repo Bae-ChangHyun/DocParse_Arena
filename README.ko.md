@@ -18,19 +18,22 @@ ELO 랭킹 기반 블라인드 배틀, 실시간 스트리밍, Docker 원클릭 
 ## 데모
 
 <p align="center">
-  <img src="docs/demo.gif" alt="DocParse Arena 데모" width="800">
+  <a href="docs/demo.mp4">
+    <img src="docs/screenshots/home.png" alt="DocParse Arena 데모" width="800">
+  </a>
 </p>
+<p align="center"><em>이미지를 클릭하면 데모 영상을 볼 수 있습니다</em></p>
 
 ## 스크린샷
 
-| 배틀 - 블라인드 비교 | 리더보드 |
+| 홈 | 리더보드 |
 |:---:|:---:|
-| ![Battle](docs/screenshots/battle.png) | ![Leaderboard](docs/screenshots/leaderboard.png) |
-| 두 익명 모델이 동일 문서를 파싱하며 실시간 토큰 스트리밍으로 결과 표시. 투표 시 모델 이름 공개 및 ELO 업데이트. | ELO 레이팅, 승률, 모델 간 상대 전적 통계. |
+| ![Home](docs/screenshots/home.png) | ![Leaderboard](docs/screenshots/leaderboard.png) |
+| 블루 액센트 테마의 셀프 호스팅 블라인드 비교 플랫폼. | ELO 레이팅, 승률, 모델 간 상대 전적 통계. |
 
-| 플레이그라운드 | 설정 |
+| 플레이그라운드 | 설정 - 모델 관리 |
 |:---:|:---:|
-| ![Playground](docs/screenshots/playground.png) | ![Settings](docs/screenshots/settings-providers.png) |
+| ![Playground](docs/screenshots/playground.png) | ![Settings](docs/screenshots/settings-models.png) |
 | 개별 모델을 커스텀 프롬프트와 온도 조절로 테스트. | 프로바이더, 모델, 프롬프트, VLM 레지스트리 추천 관리. |
 
 ## 배경

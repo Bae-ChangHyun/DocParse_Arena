@@ -18,19 +18,22 @@ ELO-ranked blind battles, real-time streaming, Docker one-click deploy.
 ## Demo
 
 <p align="center">
-  <img src="docs/demo.gif" alt="DocParse Arena Demo" width="800">
+  <a href="docs/demo.mp4">
+    <img src="docs/screenshots/home.png" alt="DocParse Arena Demo" width="800">
+  </a>
 </p>
+<p align="center"><em>Click the image to watch the demo video</em></p>
 
 ## Screenshots
 
-| Battle - Blind Comparison | Leaderboard |
+| Home | Leaderboard |
 |:---:|:---:|
-| ![Battle](docs/screenshots/battle.png) | ![Leaderboard](docs/screenshots/leaderboard.png) |
-| Two anonymous models parse the same document with real-time token streaming. Vote to reveal model names and update ELO. | ELO ratings, win rates, and head-to-head matchup stats. |
+| ![Home](docs/screenshots/home.png) | ![Leaderboard](docs/screenshots/leaderboard.png) |
+| Self-hosted blind comparison platform with blue accent theme. | ELO ratings, win rates, and head-to-head matchup stats. |
 
-| Playground | Settings |
+| Playground | Settings - Models |
 |:---:|:---:|
-| ![Playground](docs/screenshots/playground.png) | ![Settings](docs/screenshots/settings-providers.png) |
+| ![Playground](docs/screenshots/playground.png) | ![Settings](docs/screenshots/settings-models.png) |
 | Test individual models with custom prompts and temperature control. | Manage providers, models, prompts, and VLM registry recommendations. |
 
 ## Background
