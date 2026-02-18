@@ -143,7 +143,7 @@ cd frontend && pnpm dev &
 기여를 환영합니다! 자세한 내용은 [CONTRIBUTING.md](CONTRIBUTING.md)를 참고하세요.
 
 - **VLM 레지스트리에 모델 추가** — `backend/app/vlm_registry.py`에 추가해주세요.
-- **새 프로바이더 추가** — `backend/app/ocr_providers/`에서 `OCRProviderBase` 인터페이스를 구현합니다.
+- **새 프로바이더 추가** — `backend/app/ocr_providers/`에서 `OcrProvider` 인터페이스를 구현합니다.
 - **UI 개선** — 프론트엔드는 `frontend/src/`에 shadcn/ui 컴포넌트로 구성되어 있습니다.
 - **버그 리포트** — [이슈](https://github.com/Bae-ChangHyun/DocParse_Arena/issues)를 열어주세요.
 

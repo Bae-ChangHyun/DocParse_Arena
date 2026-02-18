@@ -19,7 +19,7 @@ export default function RankingTable() {
   useEffect(() => {
     getLeaderboard()
       .then(setEntries)
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 

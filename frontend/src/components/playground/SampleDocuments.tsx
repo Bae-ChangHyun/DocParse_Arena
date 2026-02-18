@@ -13,7 +13,7 @@ export default function SampleDocuments({ onSelect, selected }: SampleDocumentsP
   const [docs, setDocs] = useState<DocumentInfo[]>([]);
 
   useEffect(() => {
-    listDocuments().then(setDocs).catch(console.error);
+    listDocuments().then(setDocs).catch(() => {});
   }, []);
 
   if (docs.length === 0) {

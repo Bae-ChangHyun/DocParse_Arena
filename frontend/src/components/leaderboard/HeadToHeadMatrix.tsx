@@ -10,7 +10,7 @@ export default function HeadToHeadMatrix() {
   useEffect(() => {
     getHeadToHead()
       .then(setEntries)
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 

@@ -53,7 +53,7 @@ Thank you for your interest in contributing! This document provides guidelines f
 1. Create a new file in `backend/app/ocr_providers/`
 2. Extend `OcrProvider` base class from `base.py`
 3. Implement `process_image()` and `process_image_stream()`
-4. Register the provider in `backend/app/ocr_providers/__init__.py`
+4. Register the provider in `backend/app/services/ocr_service.py` (`PROVIDER_MAP`)
 
 ## Reporting Issues
 

@@ -72,7 +72,7 @@ BACKEND_PID=$!
 
 # Frontend
 cd "$SCRIPT_DIR/frontend"
-NEXT_PUBLIC_API_URL="http://localhost:${BACKEND_PORT}" pnpm dev --port "$FRONTEND_PORT" &
+pnpm dev --port "$FRONTEND_PORT" &
 FRONTEND_PID=$!
 
 wait

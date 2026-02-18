@@ -30,6 +30,9 @@ backend/sample_docs/*
 # Claude Code
 .claude/
 
+# Playwright
+.playwright-cli/
+
 # Temp docs
 docs/temp/
 

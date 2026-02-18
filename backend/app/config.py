@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     app_name: str = "DocParse Arena"
     debug: bool = False
 
-    database_url: str = "sqlite+aiosqlite:///./docparse_arena.db"
+    database_url: str = "sqlite+aiosqlite:///./data/docparse_arena.db"
 
     anthropic_api_key: str = ""
     openai_api_key: str = ""

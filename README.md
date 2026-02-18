@@ -143,7 +143,7 @@ These are opt-in — you can accept or customize them.
 Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 - **Add a VLM to the registry** — Add it to `backend/app/vlm_registry.py`.
-- **Add a new provider** — Implement the `OCRProviderBase` interface in `backend/app/ocr_providers/`.
+- **Add a new provider** — Implement the `OcrProvider` interface in `backend/app/ocr_providers/`.
 - **Improve the UI** — Frontend lives in `frontend/src/` with shadcn/ui components.
 - **Report bugs** — Open an [issue](https://github.com/Bae-ChangHyun/DocParse_Arena/issues).
 
