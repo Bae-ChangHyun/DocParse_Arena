@@ -18,11 +18,9 @@ ELO 랭킹 기반 블라인드 배틀, 실시간 스트리밍, Docker 원클릭 
 ## 데모
 
 <p align="center">
-  <a href="docs/demo.mp4">
-    <img src="docs/screenshots/home.png" alt="DocParse Arena 데모" width="800">
-  </a>
+  <video src="https://github.com/user-attachments/assets/811a791e-4edd-459f-a956-72f90632a848" width="800" autoplay loop muted></video>
 </p>
-<p align="center"><em>이미지를 클릭하면 데모 영상을 볼 수 있습니다</em></p>
+<p align="center"><em>데모 영상을 클릭하여 재생하세요</em></p>
 
 ## 스크린샷
 

@@ -15,14 +15,13 @@ ELO-ranked blind battles, real-time streaming, Docker one-click deploy.
 > **Built with AI** — Over 90% of this project was developed using [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
 > From architecture design to implementation, testing, and Docker deployment.
 
- 
+
 ## Demo
 
 <p align="center">
-  <a href="docs/demo.mp4">
-    <video src="[https://github.com/user-attachments/assets/xxxxx](https://github.com/user-attachments/assets/811a791e-4edd-459f-a956-72f90632a848)" width="800" autoplay loop muted></video>
-  </a>
+  <video src="https://github.com/user-attachments/assets/811a791e-4edd-459f-a956-72f90632a848" width="800" autoplay loop muted></video>
 </p>
+<p align="center"><em>Click to play the demo video</em></p>
 
 ## Screenshots
 
