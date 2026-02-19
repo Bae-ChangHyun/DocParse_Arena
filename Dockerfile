@@ -39,9 +39,9 @@ RUN groupadd -g 1000 appuser && useradd -u 1000 -g appuser -m appuser
 
 WORKDIR /app
 
-# Copy backend with venv
-COPY --from=backend-deps /app/backend/.venv /app/backend/.venv
+# Copy backend source first, then overlay clean venv from build stage
 COPY backend/ /app/backend/
+COPY --from=backend-deps /app/backend/.venv /app/backend/.venv
 
 # Copy frontend standalone build
 COPY --from=frontend-builder /app/frontend/.next/standalone /app/frontend/
@@ -52,7 +52,7 @@ COPY --from=frontend-builder /app/frontend/public /app/frontend/public
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
 
-# Create data directories
+# Create data directories and set ownership
 RUN mkdir -p /app/data /app/backend/sample_docs && \
     chown -R appuser:appuser /app
 

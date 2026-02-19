@@ -4,7 +4,7 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - ./data:/app/data
+      - docparse-data:/app/data
       - ./backend/sample_docs:/app/backend/sample_docs
     env_file: .env
     environment:
@@ -16,3 +16,6 @@ services:
       retries: 3
       start_period: 30s
     restart: unless-stopped
+
+volumes:
+  docparse-data:

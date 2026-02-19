@@ -16,7 +16,7 @@ trap cleanup TERM INT
 # Start backend (uvicorn) in background
 echo "Starting backend..."
 cd /app/backend
-uvicorn app.main:app --host 127.0.0.1 --port 8000 &
+/app/backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 &
 BACKEND_PID=$!
 
 # Wait for backend to be healthy (max 30 seconds)
