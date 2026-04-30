@@ -70,6 +70,15 @@ docker compose up -d
 
 http://localhost:3000 에 접속하여 배틀을 시작하세요.
 
+Docker를 다른 호스트 포트로 띄우려면 `.env`에서 `APP_PORT`를 설정하세요.
+
+```bash
+APP_PORT=3001
+docker compose up -d
+```
+
+이후 http://localhost:3001 로 접속하면 됩니다.
+
 ### 수동 설치
 
 **사전 요구사항:** Python 3.13+, Node.js 18+, [uv](https://docs.astral.sh/uv/), [pnpm](https://pnpm.io/)

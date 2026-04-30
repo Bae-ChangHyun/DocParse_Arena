@@ -71,6 +71,15 @@ docker compose up -d
 
 Open http://localhost:3000 and start battling.
 
+To run Docker on a different host port, set `APP_PORT` in `.env`:
+
+```bash
+APP_PORT=3001
+docker compose up -d
+```
+
+Then open http://localhost:3001.
+
 ### Manual Setup
 
 **Prerequisites:** Python 3.13+, Node.js 18+, [uv](https://docs.astral.sh/uv/), [pnpm](https://pnpm.io/)

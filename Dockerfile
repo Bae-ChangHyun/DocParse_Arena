@@ -60,10 +60,11 @@ USER appuser
 
 ENV PATH="/app/backend/.venv/bin:$PATH"
 ENV PYTHONUNBUFFERED=1
+ENV PORT=3000
 
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-    CMD curl -f http://localhost:3000/ || exit 1
+    CMD curl -f "http://localhost:${PORT:-3000}/" || exit 1
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]

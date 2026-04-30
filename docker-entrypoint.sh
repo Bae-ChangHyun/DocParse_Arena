@@ -36,4 +36,6 @@ echo "Backend ready."
 # Start frontend (Next.js standalone)
 echo "Starting frontend..."
 cd /app/frontend
-HOSTNAME=0.0.0.0 PORT=3000 exec node server.js
+FRONTEND_HOST="${HOSTNAME:-0.0.0.0}"
+FRONTEND_PORT="${PORT:-3000}"
+HOSTNAME="$FRONTEND_HOST" PORT="$FRONTEND_PORT" exec node server.js
