@@ -50,7 +50,7 @@ ELO 랭킹 기반 블라인드 배틀, 실시간 스트리밍, Docker 원클릭 
 - **ELO 랭킹** — K-factor 20 레이팅 시스템과 모델 간 상대 전적 통계.
 - **공정한 매치메이킹** — 가중 랜덤 선택으로 배틀 수가 적은 모델에 더 많은 기회 부여.
 - **VLM 레지스트리** — 자체 호스팅 모델의 빌트인 프로필. 등록 시 추천 프롬프트와 후처리기 자동 적용.
-- **멀티 프로바이더 지원** — Anthropic, OpenAI, Google Gemini, Mistral, Ollama 및 모든 OpenAI 호환 엔드포인트(vLLM, LiteLLM, LocalAI).
+- **멀티 프로바이더 지원** — Anthropic, OpenAI, Google Gemini, Mistral 및 모든 OpenAI 호환 엔드포인트(vLLM, LiteLLM, LocalAI).
 - **PDF 지원** — 자동 페이지 분할, 병렬 OCR 처리 및 결과 병합.
 - **프롬프트 관리** — 글로벌 기본값 및 모델별 프롬프트 오버라이드.
 - **플레이그라운드** — 개별 모델을 온도 조절과 커스텀 프롬프트로 테스트.
@@ -171,7 +171,7 @@ cd frontend && pnpm dev &
 | 백엔드 | Python 3.13, FastAPI, SQLAlchemy (async), SQLite |
 | 스트리밍 | SSE (Server-Sent Events), markstream-react |
 | 렌더링 | react-markdown, remark-gfm, remark-math, rehype-katex, rehype-sanitize |
-| 프로바이더 | Anthropic, OpenAI, Google Gemini, Mistral, Ollama, Custom (OpenAI 호환) |
+| 프로바이더 | Anthropic, OpenAI, Google Gemini, Mistral, Custom (OpenAI 호환) |
 | 배포 | Docker Compose, uv (Python), pnpm (Node.js) |
 
 ## 라이선스

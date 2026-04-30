@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import {
   getProviders,
@@ -11,6 +11,7 @@ import {
   deleteModel,
   resetModelElo,
   getProviderModels,
+  getModelOptions,
   createPrompt,
   matchRegistry,
   type ProviderSetting,
@@ -59,7 +60,15 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const BUILTIN_IDS = new Set(["claude", "openai", "gemini", "mistral", "ollama"]);
+const HOSTED_PROVIDER_TYPES = new Set(["claude", "openai", "gemini", "mistral"]);
+const CUSTOM_PROVIDER: ProviderSetting = {
+  id: "custom",
+  display_name: "Custom",
+  provider_type: "custom",
+  api_key: "",
+  base_url: "",
+  is_enabled: true,
+};
 
 const EMPTY_FORM: OcrModelCreate & { config: Record<string, unknown> } = {
   name: "",
@@ -89,6 +98,15 @@ export default function ModelManagement() {
   const [useRegistryPrompt, setUseRegistryPrompt] = useState(false);
   const [useRegistryPostprocessor, setUseRegistryPostprocessor] = useState(false);
   const registryDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const customModelLookupRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const modelProviderOptions = useMemo(
+    () => [
+      ...providers.filter((p) => HOSTED_PROVIDER_TYPES.has(p.provider_type)),
+      CUSTOM_PROVIDER,
+    ],
+    [providers],
+  );
 
   const loadData = useCallback(async () => {
     try {
@@ -101,13 +119,17 @@ export default function ModelManagement() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => {
+    void Promise.resolve().then(loadData);
+  }, [loadData]);
 
   useEffect(() => {
     if (registryDebounceRef.current) clearTimeout(registryDebounceRef.current);
     if (!form.model_id || form.model_id.length < 3) {
-      setRegistryMatch(null);
-      return;
+      registryDebounceRef.current = setTimeout(() => setRegistryMatch(null), 0);
+      return () => {
+        if (registryDebounceRef.current) clearTimeout(registryDebounceRef.current);
+      };
     }
     registryDebounceRef.current = setTimeout(() => {
       matchRegistry(form.model_id)
@@ -146,9 +168,37 @@ export default function ModelManagement() {
     setLoadingModels(false);
   }, []);
 
+  const fetchCustomModels = useCallback(async (baseUrl: string, apiKey: string) => {
+    if (!baseUrl.trim()) return;
+    setLoadingModels(true);
+    try {
+      const modelIds = await getModelOptions({
+        provider: "custom",
+        base_url: baseUrl,
+        api_key: apiKey,
+      });
+      setAvailableModels(modelIds);
+    } catch {
+      setAvailableModels([]);
+    }
+    setLoadingModels(false);
+  }, []);
+
+  useEffect(() => {
+    const baseUrl = form.base_url || "";
+    if (form.provider !== "custom" || !baseUrl.trim()) return;
+    if (customModelLookupRef.current) clearTimeout(customModelLookupRef.current);
+    customModelLookupRef.current = setTimeout(() => {
+      fetchCustomModels(baseUrl, form.api_key || "");
+    }, 500);
+    return () => {
+      if (customModelLookupRef.current) clearTimeout(customModelLookupRef.current);
+    };
+  }, [fetchCustomModels, form.api_key, form.base_url, form.provider]);
+
   const openCreate = () => {
     setEditingId(null);
-    const firstProvider = providers[0]?.id || "";
+    const firstProvider = modelProviderOptions[0]?.id || "";
     setForm({ ...EMPTY_FORM, provider: firstProvider });
     setConfigText("{}");
     setConfigError("");
@@ -156,7 +206,7 @@ export default function ModelManagement() {
     setRegistryMatch(null);
     setUseRegistryPrompt(false);
     setUseRegistryPostprocessor(false);
-    if (firstProvider) fetchProviderModels(firstProvider);
+    if (firstProvider && firstProvider !== "custom") fetchProviderModels(firstProvider);
     setDialogOpen(true);
   };
 
@@ -267,12 +317,12 @@ export default function ModelManagement() {
   };
 
   const getProviderName = (providerId: string) => {
+    if (providerId === "custom") return "Custom";
     const p = providers.find((pr) => pr.id === providerId);
     return p?.display_name || providerId;
   };
 
-  const selectedProvider = providers.find((p) => p.id === form.provider);
-  const isUrlBasedProvider = selectedProvider && (selectedProvider.provider_type === "ollama" || selectedProvider.provider_type === "custom");
+  const isCustomProvider = form.provider === "custom";
 
   if (loading) return <div className="text-center py-8 text-muted-foreground">Loading models...</div>;
 
@@ -411,16 +461,17 @@ export default function ModelManagement() {
               <Label className="text-xs">Provider</Label>
               <Select value={form.provider} onValueChange={(v) => {
                 setForm({ ...form, provider: v, model_id: "" });
-                fetchProviderModels(v);
+                setAvailableModels([]);
+                if (v !== "custom") fetchProviderModels(v);
               }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select provider" />
                 </SelectTrigger>
                 <SelectContent>
-                  {providers.map((p) => (
+                  {modelProviderOptions.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.display_name}
-                      {!BUILTIN_IDS.has(p.id) && <span className="ml-1 text-muted-foreground">(custom)</span>}
+                      {p.id === "custom" && <span className="ml-1 text-muted-foreground">(OpenAI-compatible)</span>}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -457,7 +508,7 @@ export default function ModelManagement() {
                 <Input
                   value={form.model_id}
                   onChange={(e) => setForm({ ...form, model_id: e.target.value })}
-                  placeholder="gpt-4o / claude-sonnet-4-20250514 / ..."
+                  placeholder={isCustomProvider ? "Select from /models or type manually" : "gpt-4o / claude-sonnet-4-20250514 / ..."}
                   className="font-mono"
                 />
               )}
@@ -525,30 +576,42 @@ export default function ModelManagement() {
 
             <div className="border-t pt-3 space-y-3">
               <p className="text-xs font-medium text-muted-foreground">
-                Override credentials (leave empty to use provider-level settings)
+                {isCustomProvider
+                  ? "Custom endpoint"
+                  : "Override credentials (leave empty to use provider-level settings)"}
               </p>
+              {isCustomProvider && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Base URL</Label>
+                  <Input
+                    value={form.base_url}
+                    onChange={(e) => {
+                      setForm({ ...form, base_url: e.target.value });
+                      setAvailableModels([]);
+                    }}
+                    placeholder="https://your-endpoint.com/v1"
+                    className="font-mono text-sm"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Model IDs are loaded from <span className="font-mono">/models</span>.
+                  </p>
+                </div>
+              )}
               <div className="space-y-1.5">
-                <Label className="text-xs">API Key (optional)</Label>
+                <Label className="text-xs">
+                  API Key {isCustomProvider ? "(optional)" : "(optional override)"}
+                </Label>
                 <Input
                   type="password"
                   value={form.api_key}
-                  onChange={(e) => setForm({ ...form, api_key: e.target.value })}
-                  placeholder="Uses provider API key if empty"
+                  onChange={(e) => {
+                    setForm({ ...form, api_key: e.target.value });
+                    if (isCustomProvider) setAvailableModels([]);
+                  }}
+                  placeholder={isCustomProvider ? "Leave empty if not required" : "Uses provider API key if empty"}
                   className="font-mono text-sm"
                 />
               </div>
-
-              {isUrlBasedProvider && (
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Base URL (optional)</Label>
-                  <Input
-                    value={form.base_url}
-                    onChange={(e) => setForm({ ...form, base_url: e.target.value })}
-                    placeholder="Uses provider base URL if empty"
-                    className="font-mono text-sm"
-                  />
-                </div>
-              )}
             </div>
 
             <div className="border-t pt-3 space-y-1.5">
@@ -579,7 +642,17 @@ export default function ModelManagement() {
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSubmit} disabled={submitting || !form.name || !form.display_name || !form.model_id || !form.provider}>
+            <Button
+              onClick={handleSubmit}
+              disabled={
+                submitting
+                || !form.name
+                || !form.display_name
+                || !form.model_id
+                || !form.provider
+                || (isCustomProvider && !(form.base_url || "").trim())
+              }
+            >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               {editingId ? "Update" : "Create"}
             </Button>

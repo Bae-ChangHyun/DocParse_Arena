@@ -157,11 +157,9 @@ export function streamBattle(battleId: string, onEvent: (event: string, data: un
   const BASE_DELAY = 1000;
   const MAX_DELAY = 8000;
   let retryCount = 0;
-  let currentEs: EventSource | null = null;
 
   function connect(): EventSource {
     const es = new EventSource(`${API_BASE}/api/battle/${battleId}/stream`);
-    currentEs = es;
 
     const events = [
       "model_a_token", "model_b_token",
@@ -188,7 +186,7 @@ export function streamBattle(battleId: string, onEvent: (event: string, data: un
         const delay = Math.min(BASE_DELAY * Math.pow(2, retryCount), MAX_DELAY);
         retryCount++;
         setTimeout(() => {
-          currentEs = connect();
+          connect();
         }, delay);
       } else {
         onEvent("error", { error: "Connection lost after retries" });
@@ -299,14 +297,6 @@ export interface ProviderSetting {
   is_enabled: boolean;
 }
 
-export interface ProviderSettingCreate {
-  display_name: string;
-  provider_type?: string;
-  api_key?: string;
-  base_url?: string;
-  is_enabled?: boolean;
-}
-
 export interface ProviderTestResult {
   ok: boolean;
   message: string;
@@ -361,16 +351,6 @@ export async function getProviders(): Promise<ProviderSetting[]> {
   return res.json();
 }
 
-export async function createProvider(data: ProviderSettingCreate): Promise<ProviderSetting> {
-  const res = await adminFetch(`${API_BASE}/api/admin/providers`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
-}
-
 export async function updateProvider(id: string, data: Partial<ProviderSetting>): Promise<ProviderSetting> {
   const res = await adminFetch(`${API_BASE}/api/admin/providers/${id}`, {
     method: "PUT",
@@ -379,13 +359,6 @@ export async function updateProvider(id: string, data: Partial<ProviderSetting>)
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
-}
-
-export async function deleteProvider(id: string): Promise<void> {
-  const res = await adminFetch(`${API_BASE}/api/admin/providers/${id}`, {
-    method: "DELETE",
-  });
-  if (!res.ok) throw new Error(await res.text());
 }
 
 export async function testProvider(id: string): Promise<ProviderTestResult> {
@@ -409,6 +382,21 @@ export async function getProviderModels(providerId: string): Promise<string[]> {
   if (!res.ok) return [];
   const data = await res.json();
   return data.models || [];
+}
+
+export async function getModelOptions(data: {
+  provider: string;
+  api_key?: string;
+  base_url?: string;
+}): Promise<string[]> {
+  const res = await adminFetch(`${API_BASE}/api/admin/models/options`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) return [];
+  const response = await res.json();
+  return response.models || [];
 }
 
 export async function getAdminModels(): Promise<OcrModelAdmin[]> {

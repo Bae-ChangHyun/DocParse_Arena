@@ -51,7 +51,7 @@ and run fair blind evaluations with your own data.
 - **ELO Ranking** — K-factor 20 rating system with head-to-head matchup statistics.
 - **Fair Matchmaking** — Weighted random selection ensures underrepresented models get more battles.
 - **VLM Registry** — Built-in profiles for self-hosted models with recommended prompts and post-processors auto-applied on registration.
-- **Multi-Provider Support** — Anthropic, OpenAI, Google Gemini, Mistral, Ollama, and any OpenAI-compatible endpoint (vLLM, LiteLLM, LocalAI).
+- **Multi-Provider Support** — Anthropic, OpenAI, Google Gemini, Mistral, and any OpenAI-compatible endpoint (vLLM, LiteLLM, LocalAI).
 - **PDF Support** — Automatic page splitting with parallel OCR and result merging.
 - **Prompt Management** — Global defaults and per-model prompt overrides.
 - **Playground** — Test individual models with adjustable temperature and custom prompts.
@@ -172,7 +172,7 @@ See [SECURITY.md](SECURITY.md) for vulnerability reporting.
 | Backend | Python 3.13, FastAPI, SQLAlchemy (async), SQLite |
 | Streaming | SSE (Server-Sent Events), markstream-react |
 | Rendering | react-markdown, remark-gfm, remark-math, rehype-katex, rehype-sanitize |
-| Providers | Anthropic, OpenAI, Google Gemini, Mistral, Ollama, Custom (OpenAI-compatible) |
+| Providers | Anthropic, OpenAI, Google Gemini, Mistral, Custom (OpenAI-compatible) |
 | Deploy | Docker Compose, uv (Python), pnpm (Node.js) |
 
 ## License

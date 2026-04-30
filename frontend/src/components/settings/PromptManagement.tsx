@@ -66,7 +66,9 @@ export default function PromptManagement() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => {
+    void Promise.resolve().then(loadData);
+  }, [loadData]);
 
   const openCreate = () => {
     setEditingId(null);

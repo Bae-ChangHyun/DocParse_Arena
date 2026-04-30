@@ -1,15 +1,16 @@
 """Seed the database with initial OCR models and provider settings."""
 import asyncio
+
 from loguru import logger
-from app.models.database import init_db, async_session, OcrModel, ProviderSetting, PromptSetting
 from sqlalchemy import select
+
+from app.models.database import OcrModel, PromptSetting, ProviderSetting, async_session, init_db
 
 SEED_PROVIDERS = [
     {"id": "claude", "display_name": "Anthropic Claude", "provider_type": "claude"},
     {"id": "openai", "display_name": "OpenAI", "provider_type": "openai"},
     {"id": "gemini", "display_name": "Google Gemini", "provider_type": "gemini"},
     {"id": "mistral", "display_name": "Mistral AI", "provider_type": "mistral"},
-    {"id": "ollama", "display_name": "Ollama (Local)", "provider_type": "ollama", "base_url": "http://localhost:11434"},
 ]
 
 SEED_MODELS = [
@@ -76,15 +77,6 @@ SEED_MODELS = [
         "icon": "🟣",
         "is_active": False,
     },
-    {
-        "id": "llava",
-        "name": "llava",
-        "display_name": "LLaVA (Ollama)",
-        "provider": "ollama",
-        "model_id": "llava",
-        "icon": "⚪",
-        "is_active": False,
-    },
 ]
 
 
@@ -116,9 +108,7 @@ async def seed():
             logger.info(f"Added {model_data['name']}")
 
         # Seed default prompt
-        existing_prompt = await db.execute(
-            select(PromptSetting).where(PromptSetting.is_default == True)
-        )
+        existing_prompt = await db.execute(select(PromptSetting).where(PromptSetting.is_default))
         if not existing_prompt.scalar_one_or_none():
             default_prompt = PromptSetting(
                 name="Default OCR Prompt",

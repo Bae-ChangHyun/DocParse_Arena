@@ -1,5 +1,4 @@
 from pydantic import BaseModel, field_serializer
-from datetime import datetime
 
 
 def _mask_key(v: str) -> str:
@@ -76,6 +75,12 @@ class OcrModelUpdate(BaseModel):
     is_active: bool | None = None
 
 
+class ModelOptionsRequest(BaseModel):
+    provider: str
+    api_key: str = ""
+    base_url: str = ""
+
+
 class ProviderSettingOut(BaseModel):
     id: str
     display_name: str
@@ -90,14 +95,6 @@ class ProviderSettingOut(BaseModel):
     @classmethod
     def mask_api_key(cls, v: str) -> str:
         return _mask_key(v)
-
-
-class ProviderSettingCreate(BaseModel):
-    display_name: str
-    provider_type: str = "custom"
-    api_key: str = ""
-    base_url: str = ""
-    is_enabled: bool = True
 
 
 class ProviderSettingUpdate(BaseModel):

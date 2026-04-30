@@ -83,7 +83,7 @@ export default function AboutPage() {
                 <strong>VLM Registry:</strong> Each model has its own optimized prompt and post-processing pipeline, automatically applied during battles.
               </li>
               <li>
-                <strong>Custom Providers:</strong> Connect any OpenAI-compatible endpoint &mdash; vLLM, LiteLLM, Ollama, or your own API.
+                <strong>Custom Providers:</strong> Connect any OpenAI-compatible endpoint &mdash; vLLM, LiteLLM, LocalAI, or your own API.
               </li>
               <li>
                 <strong>Privacy Controls:</strong> Set <code>STORE_OCR_RESULTS=false</code> to prevent storing parsed results. Documents stay ephemeral.
@@ -103,13 +103,12 @@ export default function AboutPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="prose prose-sm dark:prose-invert max-w-none">
-            <p>DocParse Arena ships with 5 providers out of the box. Add your own via <strong>Settings &rarr; API Providers</strong>.</p>
+            <p>DocParse Arena ships with 4 hosted providers out of the box. Add OpenAI-compatible models via <strong>Settings &rarr; Models</strong>.</p>
             <div className="not-prose flex flex-wrap gap-2 mt-2">
               <Badge variant="outline">Claude (Anthropic)</Badge>
               <Badge variant="outline">GPT (OpenAI)</Badge>
               <Badge variant="outline">Gemini (Google)</Badge>
               <Badge variant="outline">Mistral</Badge>
-              <Badge variant="outline">Ollama</Badge>
             </div>
           </CardContent>
         </Card>

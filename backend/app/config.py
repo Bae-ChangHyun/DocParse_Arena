@@ -1,8 +1,8 @@
 import os
 import secrets
+from functools import lru_cache
 
 from pydantic_settings import BaseSettings
-from functools import lru_cache
 
 
 class Settings(BaseSettings):
@@ -15,7 +15,6 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     google_api_key: str = ""
     mistral_api_key: str = ""
-    ollama_base_url: str = "http://localhost:11434"
 
     sample_docs_dir: str = os.path.join(os.path.dirname(os.path.dirname(__file__)), "sample_docs")
 
@@ -42,10 +41,6 @@ class Settings(BaseSettings):
 
     # Streaming
     stream_timeout_seconds: int = 300
-
-    # Ollama timeouts
-    ollama_connect_timeout: float = 10.0
-    ollama_read_timeout: float = 120.0
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 

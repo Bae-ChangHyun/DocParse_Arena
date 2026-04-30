@@ -2,28 +2,29 @@ import hmac
 import ipaddress
 import uuid
 from urllib.parse import urlparse
+
 import httpx
-from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy import select, delete
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.database import get_db, OcrModel, ProviderSetting, PromptSetting, Battle
+from app.auth import create_token, require_admin
+from app.config import get_settings
+from app.models.database import Battle, OcrModel, PromptSetting, ProviderSetting, get_db
 from app.models.schemas import (
+    AdminLoginRequest,
+    ModelOptionsRequest,
     OcrModelAdmin,
     OcrModelCreate,
     OcrModelUpdate,
-    ProviderSettingOut,
-    ProviderSettingCreate,
-    ProviderSettingUpdate,
-    PromptSettingOut,
     PromptSettingCreate,
+    PromptSettingOut,
     PromptSettingUpdate,
-    AdminLoginRequest,
+    ProviderSettingOut,
+    ProviderSettingUpdate,
 )
-from app.config import get_settings
-from app.auth import require_admin, create_token
-from app.vlm_registry import list_registry, match_registry
 from app.utils.error_sanitizer import sanitize_error
+from app.vlm_registry import list_registry, match_registry
 
 # Public router: no auth required
 public_router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -53,13 +54,12 @@ BUILTIN_PROVIDERS = [
     {"id": "openai", "display_name": "OpenAI", "provider_type": "openai"},
     {"id": "gemini", "display_name": "Google Gemini", "provider_type": "gemini"},
     {"id": "mistral", "display_name": "Mistral AI", "provider_type": "mistral"},
-    {"id": "ollama", "display_name": "Ollama (Local)", "provider_type": "ollama"},
 ]
 
 BUILTIN_IDS = {p["id"] for p in BUILTIN_PROVIDERS}
 
 # Provider types that require base_url connectivity
-URL_BASED_TYPES = {"ollama", "custom"}
+URL_BASED_TYPES = {"custom"}
 # Provider types that require api_key
 KEY_BASED_TYPES = {"claude", "openai", "gemini", "mistral"}
 
@@ -89,29 +89,7 @@ async def list_providers(db: AsyncSession = Depends(get_db)):
         p = existing[bp["id"]]
         await db.refresh(p)
         providers.append(ProviderSettingOut.model_validate(p))
-    # Then custom providers
-    for pid, p in existing.items():
-        if pid not in BUILTIN_IDS:
-            await db.refresh(p)
-            providers.append(ProviderSettingOut.model_validate(p))
     return providers
-
-
-@router.post("/providers", response_model=ProviderSettingOut)
-async def create_provider(data: ProviderSettingCreate, db: AsyncSession = Depends(get_db)):
-    """Create a new custom provider."""
-    provider = ProviderSetting(
-        id=str(uuid.uuid4()),
-        display_name=data.display_name,
-        provider_type=data.provider_type,
-        api_key=data.api_key,
-        base_url=data.base_url,
-        is_enabled=data.is_enabled,
-    )
-    db.add(provider)
-    await db.commit()
-    await db.refresh(provider)
-    return ProviderSettingOut.model_validate(provider)
 
 
 @router.put("/providers/{provider_id}", response_model=ProviderSettingOut)
@@ -141,30 +119,6 @@ async def update_provider(
     await db.commit()
     await db.refresh(provider)
     return ProviderSettingOut.model_validate(provider)
-
-
-@router.delete("/providers/{provider_id}")
-async def delete_provider(provider_id: str, db: AsyncSession = Depends(get_db)):
-    if provider_id in BUILTIN_IDS:
-        raise HTTPException(status_code=400, detail="Cannot delete built-in provider")
-
-    result = await db.execute(select(ProviderSetting).where(ProviderSetting.id == provider_id))
-    provider = result.scalar_one_or_none()
-    if not provider:
-        raise HTTPException(status_code=404, detail="Provider not found")
-
-    # Check if any models use this provider
-    models_result = await db.execute(select(OcrModel).where(OcrModel.provider == provider_id))
-    models = models_result.scalars().all()
-    if models:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Cannot delete: {len(models)} model(s) use this provider. Remove or reassign them first.",
-        )
-
-    await db.delete(provider)
-    await db.commit()
-    return {"ok": True}
 
 
 @router.post("/providers/{provider_id}/test")
@@ -216,7 +170,7 @@ async def test_provider(provider_id: str, db: AsyncSession = Depends(get_db)):
 @router.post("/providers/test-all")
 async def test_all_providers(db: AsyncSession = Depends(get_db)):
     """Test all enabled providers and auto-deactivate models on failure."""
-    result = await db.execute(select(ProviderSetting))
+    result = await db.execute(select(ProviderSetting).where(ProviderSetting.id.in_(BUILTIN_IDS)))
     providers = list(result.scalars().all())
 
     results = []
@@ -338,19 +292,15 @@ def _is_private_url(url: str) -> bool:
 
 async def _test_url(base_url: str, ptype: str, api_key: str = "") -> tuple[bool, str]:
     """Test connectivity to a base URL."""
-    if ptype != "ollama" and _is_private_url(base_url):
-        return False, "Private/internal URLs are not allowed for non-Ollama providers"
+    if _is_private_url(base_url):
+        return False, "Private/internal URLs are not allowed for custom providers"
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            if ptype == "ollama":
-                resp = await client.get(base_url)
-            else:
-                # Custom OpenAI-compatible: try /models with auth
-                url = base_url.rstrip("/")
-                headers = {}
-                if api_key:
-                    headers["Authorization"] = f"Bearer {api_key}"
-                resp = await client.get(f"{url}/models", headers=headers)
+            url = base_url.rstrip("/")
+            headers = {}
+            if api_key:
+                headers["Authorization"] = f"Bearer {api_key}"
+            resp = await client.get(f"{url}/models", headers=headers)
         if resp.status_code < 500:
             return True, f"Connected (HTTP {resp.status_code})"
         return False, f"Server error (HTTP {resp.status_code})"
@@ -362,9 +312,65 @@ async def _test_url(base_url: str, ptype: str, api_key: str = "") -> tuple[bool,
         return False, f"Connection failed: {sanitize_error(e)}"
 
 
+async def _fetch_available_models(ptype: str, api_key: str = "", base_url: str = "") -> list[str]:
+    models = []
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        if ptype == "openai":
+            resp = await client.get(
+                "https://api.openai.com/v1/models",
+                headers={"Authorization": f"Bearer {api_key}"},
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                models = sorted(
+                    [m["id"] for m in data.get("data", []) if "gpt" in m["id"].lower()],
+                )
+        elif ptype == "gemini":
+            resp = await client.get(
+                f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}",
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                models = sorted(
+                    [m["name"].replace("models/", "") for m in data.get("models", [])
+                     if "gemini" in m.get("name", "").lower()],
+                )
+        elif ptype == "mistral":
+            resp = await client.get(
+                "https://api.mistral.ai/v1/models",
+                headers={"Authorization": f"Bearer {api_key}"},
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                models = sorted([m["id"] for m in data.get("data", [])])
+        elif ptype == "claude":
+            resp = await client.get(
+                "https://api.anthropic.com/v1/models",
+                headers={
+                    "x-api-key": api_key,
+                    "anthropic-version": "2023-06-01",
+                },
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                models = sorted([m["id"] for m in data.get("data", [])])
+        elif ptype == "custom":
+            url = (base_url or "").rstrip("/")
+            if url:
+                headers = {}
+                if api_key:
+                    headers["Authorization"] = f"Bearer {api_key}"
+                resp = await client.get(f"{url}/models", headers=headers)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    models = sorted([m["id"] for m in data.get("data", [])])
+
+    return models
+
+
 @router.get("/providers/{provider_id}/models")
 async def list_provider_models(provider_id: str, db: AsyncSession = Depends(get_db)):
-    """Fetch available models from a provider's API."""
+    """Fetch available models from a hosted provider's configured API key."""
     result = await db.execute(select(ProviderSetting).where(ProviderSetting.id == provider_id))
     provider = result.scalar_one_or_none()
     if not provider:
@@ -373,69 +379,25 @@ async def list_provider_models(provider_id: str, db: AsyncSession = Depends(get_
     ptype = provider.provider_type or provider_id
     api_key = (provider.api_key or "").strip()
     base_url = (provider.base_url or "").strip()
-    models = []
-
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            if ptype == "openai":
-                resp = await client.get(
-                    "https://api.openai.com/v1/models",
-                    headers={"Authorization": f"Bearer {api_key}"},
-                )
-                if resp.status_code == 200:
-                    data = resp.json()
-                    models = sorted(
-                        [m["id"] for m in data.get("data", []) if "gpt" in m["id"].lower()],
-                    )
-            elif ptype == "gemini":
-                resp = await client.get(
-                    f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}",
-                )
-                if resp.status_code == 200:
-                    data = resp.json()
-                    models = sorted(
-                        [m["name"].replace("models/", "") for m in data.get("models", [])
-                         if "gemini" in m.get("name", "").lower()],
-                    )
-            elif ptype == "mistral":
-                resp = await client.get(
-                    "https://api.mistral.ai/v1/models",
-                    headers={"Authorization": f"Bearer {api_key}"},
-                )
-                if resp.status_code == 200:
-                    data = resp.json()
-                    models = sorted([m["id"] for m in data.get("data", [])])
-            elif ptype == "claude":
-                resp = await client.get(
-                    "https://api.anthropic.com/v1/models",
-                    headers={
-                        "x-api-key": api_key,
-                        "anthropic-version": "2023-06-01",
-                    },
-                )
-                if resp.status_code == 200:
-                    data = resp.json()
-                    models = sorted([m["id"] for m in data.get("data", [])])
-            elif ptype == "ollama":
-                url = (base_url or "http://localhost:11434").rstrip("/")
-                resp = await client.get(f"{url}/api/tags")
-                if resp.status_code == 200:
-                    data = resp.json()
-                    models = sorted([m["name"] for m in data.get("models", [])])
-            elif ptype == "custom":
-                url = (base_url or "").rstrip("/")
-                if url:
-                    headers = {}
-                    if api_key:
-                        headers["Authorization"] = f"Bearer {api_key}"
-                    resp = await client.get(f"{url}/models", headers=headers)
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        models = sorted([m["id"] for m in data.get("data", [])])
+        return {"models": await _fetch_available_models(ptype, api_key, base_url)}
     except Exception as e:
-        return {"models": models, "error": sanitize_error(e)}
+        return {"models": [], "error": sanitize_error(e)}
 
-    return {"models": models}
+
+@router.post("/models/options")
+async def list_model_options(data: ModelOptionsRequest):
+    """Fetch model IDs for a model-level provider configuration."""
+    try:
+        return {
+            "models": await _fetch_available_models(
+                data.provider.strip(),
+                data.api_key.strip(),
+                data.base_url.strip(),
+            )
+        }
+    except Exception as e:
+        return {"models": [], "error": sanitize_error(e)}
 
 
 # ── Model Management ──────────────────────────────────────────
@@ -462,6 +424,8 @@ async def list_all_models(db: AsyncSession = Depends(get_db)):
                 data["provider_ok"] = bool(ps.api_key or m.api_key)
             else:
                 data["provider_ok"] = True
+        elif m.provider in URL_BASED_TYPES:
+            data["provider_ok"] = bool(m.base_url)
         else:
             data["provider_ok"] = False
         items.append(data)
@@ -577,7 +541,7 @@ async def list_prompts(db: AsyncSession = Depends(get_db)):
 async def create_prompt(data: PromptSettingCreate, db: AsyncSession = Depends(get_db)):
     # If setting as default, clear existing defaults
     if data.is_default:
-        result = await db.execute(select(PromptSetting).where(PromptSetting.is_default == True))
+        result = await db.execute(select(PromptSetting).where(PromptSetting.is_default))
         for p in result.scalars().all():
             p.is_default = False
 
@@ -616,7 +580,7 @@ async def update_prompt(
     if data.is_default:
         # Clear other defaults
         result = await db.execute(
-            select(PromptSetting).where(PromptSetting.is_default == True, PromptSetting.id != prompt_id)
+            select(PromptSetting).where(PromptSetting.is_default, PromptSetting.id != prompt_id)
         )
         for p in result.scalars().all():
             p.is_default = False

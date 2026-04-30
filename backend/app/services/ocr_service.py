@@ -3,20 +3,20 @@ import random
 import re
 import time
 from collections.abc import AsyncGenerator
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.database import OcrModel, ProviderSetting, PromptSetting
+from app.config import get_settings
+from app.models.database import OcrModel, PromptSetting, ProviderSetting
 from app.models.schemas import OcrResult
 from app.ocr_providers.base import OcrProvider
 from app.ocr_providers.claude import ClaudeOcrProvider
-from app.ocr_providers.openai_gpt import OpenAIOcrProvider
+from app.ocr_providers.custom import CustomOcrProvider
 from app.ocr_providers.gemini import GeminiOcrProvider
 from app.ocr_providers.mistral import MistralOcrProvider
-from app.ocr_providers.ollama import OllamaOcrProvider
-from app.ocr_providers.custom import CustomOcrProvider
+from app.ocr_providers.openai_gpt import OpenAIOcrProvider
 from app.services.pdf_service import pdf_to_images_async
-from app.config import get_settings
 from app.services.postprocessors import apply_postprocessor, strip_code_fences
 
 PROVIDER_MAP = {
@@ -24,7 +24,6 @@ PROVIDER_MAP = {
     "openai": OpenAIOcrProvider,
     "gemini": GeminiOcrProvider,
     "mistral": MistralOcrProvider,
-    "ollama": OllamaOcrProvider,
     "custom": CustomOcrProvider,
 }
 
@@ -58,9 +57,7 @@ async def _resolve_prompt(db: AsyncSession, model: OcrModel) -> str:
         return prompt.prompt_text
 
     # 2. Default prompt
-    result = await db.execute(
-        select(PromptSetting).where(PromptSetting.is_default == True)
-    )
+    result = await db.execute(select(PromptSetting).where(PromptSetting.is_default))
     prompt = result.scalar_one_or_none()
     if prompt:
         return prompt.prompt_text
@@ -80,7 +77,13 @@ async def resolve_prompt(db: AsyncSession, model: OcrModel) -> str:
     return await _resolve_prompt(db, model)
 
 
-def get_provider(provider_name: str, model_id: str, api_key: str = "", base_url: str = "", extra_config: dict | None = None) -> OcrProvider:
+def get_provider(
+    provider_name: str,
+    model_id: str,
+    api_key: str = "",
+    base_url: str = "",
+    extra_config: dict | None = None,
+) -> OcrProvider:
     provider_cls = PROVIDER_MAP.get(provider_name)
     if not provider_cls:
         raise ValueError(f"Unknown provider: {provider_name}")
@@ -92,7 +95,7 @@ def get_provider(provider_name: str, model_id: str, api_key: str = "", base_url:
 
 
 async def select_random_models(db: AsyncSession, count: int = 2) -> list[OcrModel]:
-    result = await db.execute(select(OcrModel).where(OcrModel.is_active == True))
+    result = await db.execute(select(OcrModel).where(OcrModel.is_active))
     models = list(result.scalars().all())
     if len(models) < count:
         raise ValueError(f"Not enough active models. Need {count}, have {len(models)}")
