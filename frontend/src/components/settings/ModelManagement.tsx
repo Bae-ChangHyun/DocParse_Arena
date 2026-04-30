@@ -57,6 +57,12 @@ import {
   WifiOff,
   Zap,
   Info,
+  Search,
+  SlidersHorizontal,
+  BrainCircuit,
+  Activity,
+  Gauge,
+  Server,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -70,10 +76,38 @@ const CUSTOM_PROVIDER: ProviderSetting = {
   is_enabled: true,
 };
 
+type ThinkingFamily = "gpt-oss" | "gemma4" | "qwen3" | "plain";
+type ThinkingMode = "default" | "off" | "low" | "medium" | "high";
+
+const THINKING_PROVIDER_TYPES = new Set(["openai", "custom"]);
+const THINKING_MODES = new Set(["default", "off", "low", "medium", "high"]);
+
+function detectThinkingFamily(modelId: string): ThinkingFamily {
+  const normalized = modelId.toLowerCase();
+  if (normalized.includes("gpt-oss")) return "gpt-oss";
+  if (normalized.includes("gemma-4") || normalized.includes("gemma4")) return "gemma4";
+  if (normalized.includes("qwen3")) return "qwen3";
+  return "plain";
+}
+
+function normalizeThinkingMode(value: unknown): ThinkingMode {
+  if (typeof value === "string" && THINKING_MODES.has(value)) {
+    return value as ThinkingMode;
+  }
+  return "default";
+}
+
+function stripThinkingConfig(config: Record<string, unknown>) {
+  const next = { ...config };
+  delete next.thinking_mode;
+  delete next.thinking_budget;
+  return next;
+}
+
 const EMPTY_FORM: OcrModelCreate & { config: Record<string, unknown> } = {
   name: "",
   display_name: "",
-  icon: "\u{1F916}",
+  icon: "AI",
   provider: "",
   model_id: "",
   api_key: "",
@@ -91,6 +125,10 @@ export default function ModelManagement() {
   const [form, setForm] = useState<OcrModelCreate & { config: Record<string, unknown> }>(EMPTY_FORM);
   const [configText, setConfigText] = useState("{}");
   const [configError, setConfigError] = useState("");
+  const [thinkingMode, setThinkingMode] = useState<ThinkingMode>("default");
+  const [thinkingBudget, setThinkingBudget] = useState("");
+  const [modelSearch, setModelSearch] = useState("");
+  const [providerFilter, setProviderFilter] = useState("all");
   const [submitting, setSubmitting] = useState(false);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
@@ -202,6 +240,8 @@ export default function ModelManagement() {
     setForm({ ...EMPTY_FORM, provider: firstProvider });
     setConfigText("{}");
     setConfigError("");
+    setThinkingMode("default");
+    setThinkingBudget("");
     setAvailableModels([]);
     setRegistryMatch(null);
     setUseRegistryPrompt(false);
@@ -213,6 +253,7 @@ export default function ModelManagement() {
   const openEdit = (model: OcrModelAdmin) => {
     setEditingId(model.id);
     const cfg = model.config || {};
+    const visibleCfg = stripThinkingConfig(cfg);
     setForm({
       name: model.name,
       display_name: model.display_name,
@@ -224,8 +265,14 @@ export default function ModelManagement() {
       config: cfg,
       is_active: model.is_active,
     });
-    setConfigText(Object.keys(cfg).length > 0 ? JSON.stringify(cfg, null, 2) : "{}");
+    setConfigText(Object.keys(visibleCfg).length > 0 ? JSON.stringify(visibleCfg, null, 2) : "{}");
     setConfigError("");
+    setThinkingMode(normalizeThinkingMode(cfg.thinking_mode));
+    setThinkingBudget(
+      typeof cfg.thinking_budget === "number" || typeof cfg.thinking_budget === "string"
+        ? String(cfg.thinking_budget)
+        : "",
+    );
     setRegistryMatch(null);
     setUseRegistryPostprocessor(!!cfg.postprocessor);
     setDialogOpen(true);
@@ -235,7 +282,7 @@ export default function ModelManagement() {
     let parsedConfig: Record<string, unknown> = {};
     try {
       parsedConfig = JSON.parse(configText);
-      if (typeof parsedConfig !== "object" || Array.isArray(parsedConfig)) {
+      if (!parsedConfig || typeof parsedConfig !== "object" || Array.isArray(parsedConfig)) {
         toast.error("Extra kwargs must be a JSON object");
         return;
       }
@@ -249,6 +296,29 @@ export default function ModelManagement() {
         parsedConfig.postprocessor = registryMatch.postprocessor;
       } else {
         delete parsedConfig.postprocessor;
+      }
+    }
+
+    delete parsedConfig.thinking_mode;
+    delete parsedConfig.thinking_budget;
+    const submitProviderType = form.provider === "custom"
+      ? "custom"
+      : providers.find((p) => p.id === form.provider)?.provider_type || form.provider;
+    const submitThinkingFamily = detectThinkingFamily(form.model_id);
+    const submitThinkingSupported = (
+      THINKING_PROVIDER_TYPES.has(submitProviderType)
+      && submitThinkingFamily !== "plain"
+    );
+    const submitThinkingEnabled = thinkingMode !== "default" && thinkingMode !== "off";
+    if (submitThinkingSupported) {
+      parsedConfig.thinking_mode = submitThinkingEnabled ? thinkingMode : "default";
+      if (submitThinkingFamily === "qwen3" && submitThinkingEnabled && thinkingBudget.trim()) {
+        const budget = Number.parseInt(thinkingBudget, 10);
+        if (!Number.isFinite(budget) || budget <= 0) {
+          toast.error("Thinking budget must be a positive number");
+          return;
+        }
+        parsedConfig.thinking_budget = budget;
       }
     }
 
@@ -322,36 +392,161 @@ export default function ModelManagement() {
     return p?.display_name || providerId;
   };
 
-  const isCustomProvider = form.provider === "custom";
+  const getProviderType = (providerId: string) => {
+    if (providerId === "custom") return "custom";
+    return providers.find((p) => p.id === providerId)?.provider_type || providerId;
+  };
 
-  if (loading) return <div className="text-center py-8 text-muted-foreground">Loading models...</div>;
+  const getModelThinkingMeta = (model: OcrModelAdmin) => {
+    const family = detectThinkingFamily(model.model_id);
+    const supported = THINKING_PROVIDER_TYPES.has(getProviderType(model.provider)) && family !== "plain";
+    const mode = normalizeThinkingMode(model.config?.thinking_mode);
+    const enabled = supported && mode !== "default" && mode !== "off";
+    const label = !supported
+      ? "N/A"
+      : enabled && family === "gpt-oss"
+        ? mode.toUpperCase()
+        : enabled
+          ? "ON"
+          : "OFF";
+    return { family, supported, enabled, label };
+  };
+
+  const isCustomProvider = form.provider === "custom";
+  const selectedProviderType = getProviderType(form.provider);
+  const isThinkingProvider = THINKING_PROVIDER_TYPES.has(selectedProviderType);
+  const thinkingFamily = detectThinkingFamily(form.model_id);
+  const thinkingSupported = isThinkingProvider && thinkingFamily !== "plain";
+  const thinkingEnabled = thinkingMode !== "default" && thinkingMode !== "off";
+  const activeModelCount = models.filter((m) => m.is_active).length;
+  const inactiveModelCount = models.length - activeModelCount;
+  const providerCount = new Set(models.map((m) => m.provider)).size;
+  const thinkingOnCount = models.filter((m) => getModelThinkingMeta(m).enabled).length;
+  const normalizedSearch = modelSearch.trim().toLowerCase();
+  const providerFilterOptions = Array.from(new Set(models.map((m) => m.provider)))
+    .map((id) => ({ id, name: getProviderName(id) }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const filteredModels = models.filter((model) => {
+    const providerName = getProviderName(model.provider);
+    const matchesSearch = !normalizedSearch
+      || model.display_name.toLowerCase().includes(normalizedSearch)
+      || model.name.toLowerCase().includes(normalizedSearch)
+      || model.model_id.toLowerCase().includes(normalizedSearch)
+      || providerName.toLowerCase().includes(normalizedSearch);
+    const matchesProvider = providerFilter === "all" || model.provider === providerFilter;
+    return matchesSearch && matchesProvider;
+  });
+
+  const handleThinkingToggle = (enabled: boolean) => {
+    if (!enabled) {
+      setThinkingMode("default");
+      return;
+    }
+    setThinkingMode(thinkingFamily === "gpt-oss" ? "medium" : "low");
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <div className="h-28 rounded-lg border bg-card/70 animate-pulse" />
+        <div className="h-72 rounded-lg border bg-card/70 animate-pulse" />
+      </div>
+    );
+  }
 
   return (
     <>
-      <div className="mb-2">
-        <h2 className="text-lg font-semibold">Models</h2>
-        <p className="text-sm text-muted-foreground">Manage OCR models for battle arena</p>
+      <div className="rounded-lg border bg-card/90 shadow-[0_18px_45px_-32px_rgba(15,23,42,0.45)] overflow-hidden">
+        <div className="flex flex-col gap-5 p-5 md:p-6">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg border bg-background shadow-xs">
+                  <Server className="h-4 w-4 text-primary" />
+                </div>
+                <h2 className="text-xl font-semibold tracking-tight">Models</h2>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Configure OCR competitors, provider routing, and model-specific thinking behavior.
+              </p>
+            </div>
+            <Button onClick={openCreate} className="gap-1.5 active:scale-[0.98] md:mt-1">
+              <Plus className="h-4 w-4" />
+              Add Model
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div className="rounded-lg border bg-background/60 p-3">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Active</span>
+                <Activity className="h-3.5 w-3.5" />
+              </div>
+              <div className="mt-2 font-mono text-2xl font-semibold">{activeModelCount}</div>
+              <div className="text-[11px] text-muted-foreground">{inactiveModelCount} inactive</div>
+            </div>
+            <div className="rounded-lg border bg-background/60 p-3">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Total</span>
+                <Gauge className="h-3.5 w-3.5" />
+              </div>
+              <div className="mt-2 font-mono text-2xl font-semibold">{models.length}</div>
+              <div className="text-[11px] text-muted-foreground">registered models</div>
+            </div>
+            <div className="rounded-lg border bg-background/60 p-3">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Providers</span>
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+              </div>
+              <div className="mt-2 font-mono text-2xl font-semibold">{providerCount}</div>
+              <div className="text-[11px] text-muted-foreground">in use</div>
+            </div>
+            <div className="rounded-lg border bg-background/60 p-3">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Thinking</span>
+                <BrainCircuit className="h-3.5 w-3.5" />
+              </div>
+              <div className="mt-2 font-mono text-2xl font-semibold">{thinkingOnCount}</div>
+              <div className="text-[11px] text-muted-foreground">enabled adapters</div>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 border-t pt-4 md:flex-row md:items-center">
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={modelSearch}
+                onChange={(e) => setModelSearch(e.target.value)}
+                placeholder="Search by name, model ID, or provider"
+                className="h-10 bg-background/70 pl-9"
+              />
+            </div>
+            <Select value={providerFilter} onValueChange={setProviderFilter}>
+              <SelectTrigger className="h-10 w-full bg-background/70 md:w-[220px]">
+                <SelectValue placeholder="Provider" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All providers</SelectItem>
+                {providerFilterOptions.map((provider) => (
+                  <SelectItem key={provider.id} value={provider.id}>
+                    {provider.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
       </div>
 
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-muted-foreground">
-          {models.filter((m) => m.is_active).length} active / {models.length} total models.
-          Only active models are used in battle.
-        </p>
-        <Button onClick={openCreate} className="gap-1.5">
-          <Plus className="h-4 w-4" />
-          Add Model
-        </Button>
-      </div>
-
-      <div className="rounded-lg border overflow-hidden">
+      <div className="mt-4 rounded-lg border bg-card/80 shadow-[0_18px_45px_-34px_rgba(15,23,42,0.38)] overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow>
+            <TableRow className="bg-muted/40 hover:bg-muted/40">
               <TableHead className="w-10">Active</TableHead>
               <TableHead>Model</TableHead>
               <TableHead>Provider</TableHead>
               <TableHead>Model ID</TableHead>
+              <TableHead>Thinking</TableHead>
               <TableHead className="text-center">API Key</TableHead>
               <TableHead className="text-right">ELO</TableHead>
               <TableHead className="text-right">Battles</TableHead>
@@ -359,70 +554,115 @@ export default function ModelManagement() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {models.map((model) => (
-              <TableRow key={model.id} className={!model.is_active ? "opacity-50" : ""}>
-                <TableCell>
-                  <Switch
-                    checked={model.is_active}
-                    onCheckedChange={() => handleToggle(model.id)}
-                  />
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    <span>{model.icon}</span>
-                    <div>
-                      <div className="font-medium text-sm">{model.display_name}</div>
-                      <div className="text-xs text-muted-foreground font-mono">{model.name}</div>
+            {filteredModels.map((model) => {
+              const thinkingMeta = getModelThinkingMeta(model);
+              return (
+                <TableRow
+                  key={model.id}
+                  className={cn(
+                    "group transition-colors",
+                    !model.is_active && "opacity-55",
+                  )}
+                >
+                  <TableCell className="align-middle">
+                    <Switch
+                      checked={model.is_active}
+                      onCheckedChange={() => handleToggle(model.id)}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border bg-background text-[11px] font-semibold shadow-xs">
+                        {model.icon || "AI"}
+                      </span>
+                      <div>
+                        <div className="font-medium text-sm">{model.display_name}</div>
+                        <div className="text-xs text-muted-foreground font-mono">{model.name}</div>
+                      </div>
                     </div>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-1.5">
-                    <Badge variant="secondary" className="text-xs">{getProviderName(model.provider)}</Badge>
-                    {model.provider_ok === false && (
-                      <Badge variant="destructive" className="text-[10px] gap-0.5">
-                        <WifiOff className="h-2.5 w-2.5" />
-                        No Key
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1.5">
+                      <Badge variant="secondary" className="text-xs">{getProviderName(model.provider)}</Badge>
+                      {model.provider_ok === false && (
+                        <Badge variant="destructive" className="text-[10px] gap-0.5">
+                          <WifiOff className="h-2.5 w-2.5" />
+                          No Key
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="font-mono text-xs max-w-[200px] truncate">{model.model_id}</TableCell>
+                  <TableCell>
+                    {thinkingMeta.supported ? (
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "gap-1 text-[10px] font-mono",
+                          thinkingMeta.enabled
+                            ? "border-emerald-300/70 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300"
+                            : "border-muted-foreground/20 bg-muted/40 text-muted-foreground",
+                        )}
+                      >
+                        <BrainCircuit className="h-3 w-3" />
+                        {thinkingMeta.family} {thinkingMeta.label}
                       </Badge>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">unsupported</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {model.api_key ? (
+                      <Check className="h-4 w-4 text-green-600 mx-auto" />
+                    ) : (
+                      <span className="text-xs text-muted-foreground">provider</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right font-mono">{model.elo}</TableCell>
+                  <TableCell className="text-right">{model.total_battles}</TableCell>
+                  <TableCell>
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="icon" className="h-7 w-7 active:scale-[0.95]" onClick={() => openEdit(model)}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 active:scale-[0.95]" onClick={() => handleResetElo(model.id, model.display_name)}>
+                        <RotateCcw className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-destructive active:scale-[0.95]"
+                        onClick={() => handleDelete(model.id, model.display_name)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+            {filteredModels.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={9} className="h-36 text-center">
+                  <div className="mx-auto flex max-w-sm flex-col items-center gap-2 text-sm text-muted-foreground">
+                    <Server className="h-8 w-8 text-muted-foreground/50" />
+                    <span>{models.length === 0 ? "No models registered yet." : "No models match the current filters."}</span>
+                    {models.length === 0 && (
+                      <Button size="sm" variant="outline" className="mt-2 gap-1.5" onClick={openCreate}>
+                        <Plus className="h-3.5 w-3.5" />
+                        Add Model
+                      </Button>
                     )}
                   </div>
                 </TableCell>
-                <TableCell className="font-mono text-xs max-w-[200px] truncate">{model.model_id}</TableCell>
-                <TableCell className="text-center">
-                  {model.api_key ? (
-                    <Check className="h-4 w-4 text-green-600 mx-auto" />
-                  ) : (
-                    <span className="text-xs text-muted-foreground">provider</span>
-                  )}
-                </TableCell>
-                <TableCell className="text-right font-mono">{model.elo}</TableCell>
-                <TableCell className="text-right">{model.total_battles}</TableCell>
-                <TableCell>
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(model)}>
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleResetElo(model.id, model.display_name)}>
-                      <RotateCcw className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-destructive"
-                      onClick={() => handleDelete(model.id, model.display_name)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </TableCell>
               </TableRow>
-            ))}
+            )}
           </TableBody>
         </Table>
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{editingId ? "Edit Model" : "Add New Model"}</DialogTitle>
           </DialogHeader>
@@ -613,6 +853,70 @@ export default function ModelManagement() {
                 />
               </div>
             </div>
+
+            {isThinkingProvider && (
+              <div className="border-t pt-3 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0 space-y-0.5">
+                    <Label htmlFor="thinking-enabled" className="text-xs">Thinking</Label>
+                    <p className="text-[11px] text-muted-foreground">
+                      {thinkingSupported
+                        ? `${thinkingFamily} adapter`
+                        : "Supported for gpt-oss, Gemma 4, and Qwen3 model IDs"}
+                    </p>
+                  </div>
+                  <Switch
+                    id="thinking-enabled"
+                    checked={thinkingSupported && thinkingEnabled}
+                    disabled={!thinkingSupported}
+                    onCheckedChange={handleThinkingToggle}
+                  />
+                </div>
+
+                {thinkingSupported && thinkingEnabled && thinkingFamily === "gpt-oss" && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Reasoning effort</Label>
+                    <Select value={thinkingMode} onValueChange={(v) => setThinkingMode(v as ThinkingMode)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="low">Low</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="high">High</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[11px] text-muted-foreground">
+                      Sends <span className="font-mono">reasoning_effort</span> when enabled.
+                    </p>
+                  </div>
+                )}
+
+                {thinkingSupported && thinkingEnabled && thinkingFamily === "qwen3" && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Thinking token budget</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={thinkingBudget}
+                      onChange={(e) => setThinkingBudget(e.target.value)}
+                      placeholder="Optional"
+                      className="font-mono"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Adds <span className="font-mono">thinking_token_budget</span> when set.
+                    </p>
+                  </div>
+                )}
+
+                {thinkingSupported && !thinkingEnabled && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Off sends explicit thinking-disabled parameters for this model family.
+                  </p>
+                )}
+              </div>
+            )}
 
             <div className="border-t pt-3 space-y-1.5">
               <Label className="text-xs">Extra kwargs (JSON)</Label>

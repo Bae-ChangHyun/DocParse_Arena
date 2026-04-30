@@ -18,6 +18,7 @@ from app.ocr_providers.mistral import MistralOcrProvider
 from app.ocr_providers.openai_gpt import OpenAIOcrProvider
 from app.services.pdf_service import pdf_to_images_async
 from app.services.postprocessors import apply_postprocessor, strip_code_fences
+from app.services.thinking_adapter import MODE_DEFAULT, build_thinking_kwargs
 
 PROVIDER_MAP = {
     "claude": ClaudeOcrProvider,
@@ -65,11 +66,58 @@ async def _resolve_prompt(db: AsyncSession, model: OcrModel) -> str:
     return ""
 
 
-# Config keys used internally, must NOT be passed to provider APIs
-_INTERNAL_CONFIG_KEYS = {"postprocessor"}
+# Config keys used internally, must NOT be passed directly to provider APIs
+_INTERNAL_CONFIG_KEYS = {"postprocessor", "thinking_mode", "thinking_budget", "extra_body"}
+
+_OPENAI_COMPAT_PROVIDER_TYPES = {"openai", "custom"}
 
 # Allowed config keys that can be passed to provider APIs
 _ALLOWED_CONFIG_KEYS = {"temperature", "max_tokens", "max_completion_tokens", "top_p", "top_k", "seed"}
+
+
+def _coerce_thinking_budget(value: object) -> int | None:
+    if value in (None, ""):
+        return None
+    try:
+        budget = int(value)
+    except (TypeError, ValueError):
+        return None
+    return budget if budget > 0 else None
+
+
+def _prepare_provider_config(
+    provider_name: str,
+    model_id: str,
+    extra_config: dict | None = None,
+) -> dict:
+    raw_config = dict(extra_config or {})
+    provider_config = {
+        k: v
+        for k, v in raw_config.items()
+        if k not in _INTERNAL_CONFIG_KEYS and k in _ALLOWED_CONFIG_KEYS
+    }
+
+    if provider_name not in _OPENAI_COMPAT_PROVIDER_TYPES:
+        return provider_config
+
+    extra_body_raw = raw_config.get("extra_body")
+    if extra_body_raw is not None and not isinstance(extra_body_raw, dict):
+        raise ValueError("extra_body must be a JSON object")
+
+    thinking_mode = str(raw_config.get("thinking_mode") or MODE_DEFAULT).lower()
+    thinking_budget = _coerce_thinking_budget(raw_config.get("thinking_budget"))
+    thinking_kwargs, thinking_extra_body = build_thinking_kwargs(
+        model_id,
+        thinking_mode,
+        thinking_budget,
+        extra_body_raw=extra_body_raw,
+    )
+
+    provider_config.update(thinking_kwargs)
+    if thinking_extra_body:
+        provider_config["extra_body"] = thinking_extra_body
+
+    return provider_config
 
 
 async def resolve_prompt(db: AsyncSession, model: OcrModel) -> str:
@@ -87,11 +135,8 @@ def get_provider(
     provider_cls = PROVIDER_MAP.get(provider_name)
     if not provider_cls:
         raise ValueError(f"Unknown provider: {provider_name}")
-    # Strip internal keys and only allow whitelisted keys
-    if extra_config:
-        extra_config = {k: v for k, v in extra_config.items()
-                        if k not in _INTERNAL_CONFIG_KEYS and k in _ALLOWED_CONFIG_KEYS}
-    return provider_cls(model_id=model_id, api_key=api_key, base_url=base_url, extra_config=extra_config)
+    provider_config = _prepare_provider_config(provider_name, model_id, extra_config)
+    return provider_cls(model_id=model_id, api_key=api_key, base_url=base_url, extra_config=provider_config)
 
 
 async def select_random_models(db: AsyncSession, count: int = 2) -> list[OcrModel]:

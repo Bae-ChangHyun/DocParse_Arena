@@ -1,16 +1,25 @@
 import base64
 import time
 from collections.abc import AsyncGenerator
+
 from openai import AsyncOpenAI
-from app.ocr_providers.base import OcrProvider, DEFAULT_OCR_PROMPT
+
 from app.models.schemas import OcrResult
+from app.ocr_providers.base import DEFAULT_OCR_PROMPT, OcrProvider
+from app.ocr_providers.openai_compat import extract_delta_text, extract_message_text
 from app.utils.error_sanitizer import sanitize_error
 
 
 class CustomOcrProvider(OcrProvider):
     """OpenAI-compatible custom endpoint (vLLM, LiteLLM, LocalAI, etc.)."""
 
-    def __init__(self, model_id: str, api_key: str = "", base_url: str = "", extra_config: dict | None = None):
+    def __init__(
+        self,
+        model_id: str,
+        api_key: str = "",
+        base_url: str = "",
+        extra_config: dict | None = None,
+    ):
         if not base_url:
             raise ValueError("Custom provider requires base_url")
         self.client = AsyncOpenAI(
@@ -52,7 +61,7 @@ class CustomOcrProvider(OcrProvider):
                 **api_kwargs,
             )
             latency = int((time.time() - start) * 1000)
-            text = response.choices[0].message.content or ""
+            text = extract_message_text(response.choices[0].message)
             return OcrResult(text=text, latency_ms=latency)
         except Exception as e:
             latency = int((time.time() - start) * 1000)
@@ -70,6 +79,6 @@ class CustomOcrProvider(OcrProvider):
             **api_kwargs,
         )
         async for chunk in stream:
-            delta = chunk.choices[0].delta.content if chunk.choices else None
+            delta = extract_delta_text(chunk.choices[0].delta) if chunk.choices else None
             if delta:
                 yield delta
