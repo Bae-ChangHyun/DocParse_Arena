@@ -1,16 +1,18 @@
 import os
+
 import aiofiles
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Query, Form
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.database import get_db, OcrModel
-from app.models.schemas import PlaygroundResponse, OcrModelOut
-from app.services.ocr_service import run_ocr, resolve_prompt
-from app.ocr_providers.base import DEFAULT_OCR_PROMPT
 from app.config import get_settings
-from app.utils.mime import extension_to_mime, ALLOWED_EXTENSIONS
+from app.models.database import OcrModel, get_db
+from app.models.schemas import OcrModelOut, PlaygroundResponse
+from app.ocr_providers.base import DEFAULT_OCR_PROMPT
+from app.services.ocr_service import resolve_prompt, run_ocr
 from app.utils.file_validation import validate_file_content
+from app.utils.mime import ALLOWED_EXTENSIONS, extension_to_mime
+from app.utils.path_security import resolve_path_within
 
 router = APIRouter(prefix="/api/playground", tags=["playground"])
 
@@ -18,7 +20,7 @@ router = APIRouter(prefix="/api/playground", tags=["playground"])
 @router.get("/models", response_model=list[OcrModelOut])
 async def list_models(db: AsyncSession = Depends(get_db)):
     result = await db.execute(
-        select(OcrModel).where(OcrModel.is_active == True).order_by(OcrModel.elo.desc())
+        select(OcrModel).where(OcrModel.is_active).order_by(OcrModel.elo.desc())
     )
     return [OcrModelOut.model_validate(m) for m in result.scalars().all()]
 
@@ -76,10 +78,10 @@ async def playground_ocr(
         if not validate_file_content(image_data, ext):
             raise HTTPException(status_code=400, detail="File content does not match its extension")
     elif document_name:
-        filepath = os.path.join(settings.sample_docs_dir, document_name)
-        if not os.path.realpath(filepath).startswith(os.path.realpath(settings.sample_docs_dir)):
+        filepath = resolve_path_within(settings.sample_docs_dir, document_name)
+        if filepath is None:
             raise HTTPException(status_code=400, detail="Invalid document name")
-        if not os.path.exists(filepath):
+        if not filepath.is_file():
             raise HTTPException(status_code=404, detail="Document not found")
         async with aiofiles.open(filepath, "rb") as f:
             image_data = await f.read()

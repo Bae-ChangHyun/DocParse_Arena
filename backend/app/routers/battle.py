@@ -4,20 +4,22 @@ import os
 import time as _time_module
 import uuid
 from datetime import datetime, timezone
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Query
+
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
 
-from app.models.database import get_db, async_session, OcrModel, Battle
-from app.models.schemas import BattleStartResponse, VoteRequest, VoteResponse, OcrModelOut
-from app.services.ocr_service import select_random_models, run_ocr, run_ocr_stream, get_postprocessor_name
-from app.services.postprocessors import apply_postprocessor
-from app.services.elo_service import calculate_elo_change
 from app.config import get_settings
-from app.utils.mime import extension_to_mime, ALLOWED_EXTENSIONS
-from app.utils.file_validation import validate_file_content
+from app.models.database import Battle, OcrModel, async_session, get_db
+from app.models.schemas import BattleStartResponse, OcrModelOut, VoteRequest, VoteResponse
+from app.services.elo_service import calculate_elo_change
+from app.services.ocr_service import get_postprocessor_name, run_ocr_stream, select_random_models
+from app.services.postprocessors import apply_postprocessor
 from app.utils.error_sanitizer import sanitize_error
+from app.utils.file_validation import validate_file_content
+from app.utils.mime import ALLOWED_EXTENSIONS, extension_to_mime
+from app.utils.path_security import resolve_path_within
 
 router = APIRouter(prefix="/api/battle", tags=["battle"])
 
@@ -66,12 +68,12 @@ async def start_battle(
         mime_type = extension_to_mime(ext, default="image/png")
         doc_path = file.filename or f"upload{ext}"
     elif document_name:
-        filepath = os.path.join(settings.sample_docs_dir, document_name)
-        if not os.path.realpath(filepath).startswith(os.path.realpath(settings.sample_docs_dir)):
+        filepath = resolve_path_within(settings.sample_docs_dir, document_name)
+        if filepath is None:
             raise HTTPException(status_code=400, detail="Invalid document name")
-        if not os.path.exists(filepath):
+        if not filepath.is_file():
             raise HTTPException(status_code=404, detail="Document not found")
-        with open(filepath, "rb") as f:
+        with filepath.open("rb") as f:
             content = f.read()
         ext = os.path.splitext(document_name)[1].lower()
         mime_type = extension_to_mime(ext, default="image/png")

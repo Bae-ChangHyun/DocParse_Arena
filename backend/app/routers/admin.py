@@ -312,7 +312,12 @@ async def _test_url(base_url: str, ptype: str, api_key: str = "") -> tuple[bool,
         return False, f"Connection failed: {sanitize_error(e)}"
 
 
-async def _fetch_available_models(ptype: str, api_key: str = "", base_url: str = "") -> list[str]:
+async def _fetch_available_models(
+    ptype: str,
+    api_key: str = "",
+    base_url: str = "",
+    allow_private_custom_url: bool = False,
+) -> list[str]:
     models = []
     async with httpx.AsyncClient(timeout=10.0) as client:
         if ptype == "openai":
@@ -357,6 +362,8 @@ async def _fetch_available_models(ptype: str, api_key: str = "", base_url: str =
         elif ptype == "custom":
             url = (base_url or "").rstrip("/")
             if url:
+                if not allow_private_custom_url and _is_private_url(url):
+                    raise ValueError("Private/internal URLs require an admin password")
                 headers = {}
                 if api_key:
                     headers["Authorization"] = f"Bearer {api_key}"
@@ -379,8 +386,16 @@ async def list_provider_models(provider_id: str, db: AsyncSession = Depends(get_
     ptype = provider.provider_type or provider_id
     api_key = (provider.api_key or "").strip()
     base_url = (provider.base_url or "").strip()
+    settings = get_settings()
     try:
-        return {"models": await _fetch_available_models(ptype, api_key, base_url)}
+        return {
+            "models": await _fetch_available_models(
+                ptype,
+                api_key,
+                base_url,
+                allow_private_custom_url=bool(settings.admin_password),
+            )
+        }
     except Exception as e:
         return {"models": [], "error": sanitize_error(e)}
 
@@ -388,12 +403,14 @@ async def list_provider_models(provider_id: str, db: AsyncSession = Depends(get_
 @router.post("/models/options")
 async def list_model_options(data: ModelOptionsRequest):
     """Fetch model IDs for a model-level provider configuration."""
+    settings = get_settings()
     try:
         return {
             "models": await _fetch_available_models(
                 data.provider.strip(),
                 data.api_key.strip(),
                 data.base_url.strip(),
+                allow_private_custom_url=bool(settings.admin_password),
             )
         }
     except Exception as e:
