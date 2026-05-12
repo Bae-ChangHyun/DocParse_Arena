@@ -10,9 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import create_token, require_admin
 from app.config import get_settings
-from app.models.database import Battle, OcrModel, PromptSetting, ProviderSetting, get_db
+from app.models.database import AppSetting, Battle, OcrModel, PromptSetting, ProviderSetting, get_db
 from app.models.schemas import (
     AdminLoginRequest,
+    ImageSettingOut,
+    ImageSettingUpdate,
     ModelOptionsRequest,
     OcrModelAdmin,
     OcrModelCreate,
@@ -22,6 +24,10 @@ from app.models.schemas import (
     PromptSettingUpdate,
     ProviderSettingOut,
     ProviderSettingUpdate,
+)
+from app.services.image_utils import (
+    IMAGE_SETTING_KEY,
+    normalize_image_setting,
 )
 from app.utils.error_sanitizer import sanitize_error
 from app.vlm_registry import list_registry, match_registry
@@ -657,6 +663,45 @@ async def reset_all(db: AsyncSession = Depends(get_db)):
 
     await db.commit()
     return {"ok": True, "message": "Factory reset complete"}
+
+
+# ── Image Processing Settings ─────────────────────────────
+
+_MAX_IMAGE_PIXELS = 8192  # sanity cap so users don't accidentally set 100000
+
+
+@router.get("/settings/image", response_model=ImageSettingOut)
+async def get_image_settings(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(AppSetting).where(AppSetting.key == IMAGE_SETTING_KEY))
+    row = result.scalar_one_or_none()
+    return ImageSettingOut(**normalize_image_setting(row.value if row else None))
+
+
+@router.put("/settings/image", response_model=ImageSettingOut)
+async def update_image_settings(
+    data: ImageSettingUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(AppSetting).where(AppSetting.key == IMAGE_SETTING_KEY))
+    row = result.scalar_one_or_none()
+    current = normalize_image_setting(row.value if row else None)
+
+    patch = data.model_dump(exclude_none=True)
+    for axis in ("max_width", "max_height"):
+        if axis in patch and not (1 <= patch[axis] <= _MAX_IMAGE_PIXELS):
+            raise HTTPException(
+                status_code=400,
+                detail=f"{axis} must be between 1 and {_MAX_IMAGE_PIXELS}",
+            )
+    current.update(patch)
+
+    if row is None:
+        row = AppSetting(key=IMAGE_SETTING_KEY, value=current)
+        db.add(row)
+    else:
+        row.value = current
+    await db.commit()
+    return ImageSettingOut(**current)
 
 
 # ── VLM Registry ──────────────────────────────────────────

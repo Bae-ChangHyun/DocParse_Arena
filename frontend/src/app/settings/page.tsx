@@ -5,16 +5,18 @@ import AuthGate from "@/components/settings/AuthGate";
 import ProviderSettings from "@/components/settings/ProviderSettings";
 import ModelManagement from "@/components/settings/ModelManagement";
 import PromptManagement from "@/components/settings/PromptManagement";
+import ImageSettings from "@/components/settings/ImageSettings";
 import DangerZone from "@/components/settings/DangerZone";
-import { KeyRound, Bot, MessageSquareText, AlertTriangle } from "lucide-react";
+import { KeyRound, Bot, MessageSquareText, ImageIcon, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type SettingsSection = "providers" | "models" | "prompts" | "dangerous";
+type SettingsSection = "providers" | "models" | "prompts" | "image" | "dangerous";
 
 const SIDEBAR_ITEMS: { key: SettingsSection; label: string; icon: React.ReactNode; className?: string }[] = [
   { key: "providers", label: "API Providers", icon: <KeyRound className="h-4 w-4" /> },
   { key: "models", label: "Models", icon: <Bot className="h-4 w-4" /> },
   { key: "prompts", label: "Prompts", icon: <MessageSquareText className="h-4 w-4" /> },
+  { key: "image", label: "Image", icon: <ImageIcon className="h-4 w-4" /> },
   { key: "dangerous", label: "Danger Zone", icon: <AlertTriangle className="h-4 w-4" />, className: "text-destructive" },
 ];
 
@@ -58,6 +60,7 @@ export default function SettingsPage() {
             {activeSection === "providers" && <ProviderSettings />}
             {activeSection === "models" && <ModelManagement />}
             {activeSection === "prompts" && <PromptManagement />}
+            {activeSection === "image" && <ImageSettings />}
             {activeSection === "dangerous" && <DangerZone />}
           </div>
         </div>

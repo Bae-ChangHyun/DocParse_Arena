@@ -522,6 +522,30 @@ export async function deletePrompt(id: string): Promise<void> {
   if (!res.ok) throw new Error(await res.text());
 }
 
+// ── Image Processing Settings ─────────────────────────────
+
+export interface ImageSetting {
+  enabled: boolean;
+  max_width: number;
+  max_height: number;
+}
+
+export async function getImageSettings(): Promise<ImageSetting> {
+  const res = await adminFetch(`${API_BASE}/api/admin/settings/image`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function updateImageSettings(data: Partial<ImageSetting>): Promise<ImageSetting> {
+  const res = await adminFetch(`${API_BASE}/api/admin/settings/image`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 // ── Dangerous Operations ──────────────────────────────────
 
 export async function resetBattles(): Promise<{ ok: boolean; message: string }> {

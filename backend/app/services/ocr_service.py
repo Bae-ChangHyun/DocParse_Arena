@@ -16,6 +16,7 @@ from app.ocr_providers.custom import CustomOcrProvider
 from app.ocr_providers.gemini import GeminiOcrProvider
 from app.ocr_providers.mistral import MistralOcrProvider
 from app.ocr_providers.openai_gpt import OpenAIOcrProvider
+from app.services.image_utils import downscale_bytes_to_png, get_image_setting
 from app.services.pdf_service import pdf_to_images_async
 from app.services.postprocessors import apply_postprocessor, strip_code_fences
 from app.services.thinking_adapter import MODE_DEFAULT, build_thinking_kwargs
@@ -172,10 +173,12 @@ async def run_ocr(
     base_url = model.base_url or ""
     provider_type = model.provider
     prompt = ""
+    image_setting = None
 
     if db:
         api_key, base_url, provider_type = await _resolve_credentials(db, model)
         prompt = await _resolve_prompt(db, model)
+        image_setting = await get_image_setting(db)
 
     if prompt_override is not None:
         prompt = prompt_override
@@ -192,8 +195,14 @@ async def run_ocr(
     # Handle PDF: split into pages, OCR each, merge
     if mime_type == "application/pdf":
         settings = get_settings()
-        result = await _run_ocr_pdf(provider, image_data, prompt, settings.pdf_dpi, settings.max_pdf_pages)
+        result = await _run_ocr_pdf(
+            provider, image_data, prompt,
+            settings.pdf_dpi, settings.max_pdf_pages, image_setting,
+        )
     else:
+        if image_setting:
+            image_data = await asyncio.to_thread(downscale_bytes_to_png, image_data, image_setting)
+            mime_type = "image/png"
         result = await provider.process_image(image_data, mime_type, prompt)
 
     # Global post-processing: strip code fences (```markdown ... ```)
@@ -214,11 +223,14 @@ async def run_ocr(
 async def _run_ocr_pdf(
     provider: OcrProvider, pdf_data: bytes, prompt: str,
     dpi: float = 216.0, max_pages: int = 50,
+    image_setting: dict | None = None,
 ) -> OcrResult:
     """Split PDF into page images, OCR each page in parallel, merge results."""
     start = time.time()
     try:
-        pages = await pdf_to_images_async(pdf_data, dpi=dpi, max_pages=max_pages)
+        pages = await pdf_to_images_async(
+            pdf_data, dpi=dpi, max_pages=max_pages, image_setting=image_setting,
+        )
     except Exception as e:
         return OcrResult(text="", latency_ms=0, error=f"PDF conversion failed: {e}")
 
@@ -332,10 +344,12 @@ async def run_ocr_stream(
     base_url = model.base_url or ""
     provider_type = model.provider
     prompt = ""
+    image_setting = None
 
     if db:
         api_key, base_url, provider_type = await _resolve_credentials(db, model)
         prompt = await _resolve_prompt(db, model)
+        image_setting = await get_image_setting(db)
 
     if prompt_override is not None:
         prompt = prompt_override
@@ -349,7 +363,10 @@ async def run_ocr_stream(
     if mime_type == "application/pdf":
         _settings = get_settings()
         pages = await pdf_to_images_async(
-            pdf_data=image_data, dpi=_settings.pdf_dpi, max_pages=_settings.max_pdf_pages
+            pdf_data=image_data,
+            dpi=_settings.pdf_dpi,
+            max_pages=_settings.max_pdf_pages,
+            image_setting=image_setting,
         )
         if not pages:
             raise RuntimeError("PDF has no pages")
@@ -360,6 +377,9 @@ async def run_ocr_stream(
             async for chunk in _strip_stream_fences(raw):
                 yield chunk
     else:
+        if image_setting:
+            image_data = await asyncio.to_thread(downscale_bytes_to_png, image_data, image_setting)
+            mime_type = "image/png"
         raw = provider.process_image_stream(image_data, mime_type, prompt)
         async for chunk in _strip_stream_fences(raw):
             yield chunk
