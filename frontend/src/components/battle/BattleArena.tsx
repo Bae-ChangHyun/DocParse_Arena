@@ -179,12 +179,8 @@ export default function BattleArena() {
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to start battle";
-      setState((prev) => ({
-        ...prev,
-        isStarting: false,
-        modelAError: message,
-        modelBError: message,
-      }));
+      toast.error("Battle failed", { description: message });
+      setState((prev) => ({ ...prev, isStarting: false }));
     }
   }, []);
 
