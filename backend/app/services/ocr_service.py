@@ -4,13 +4,13 @@ import re
 import time
 from collections.abc import AsyncGenerator
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.models.database import OcrModel, PromptSetting, ProviderSetting
 from app.models.schemas import OcrResult
-from app.ocr_providers.base import OcrProvider
+from app.ocr_providers.base import DEFAULT_OCR_PROMPT, OcrProvider
 from app.ocr_providers.claude import ClaudeOcrProvider
 from app.ocr_providers.custom import CustomOcrProvider
 from app.ocr_providers.gemini import GeminiOcrProvider
@@ -44,11 +44,17 @@ async def _resolve_credentials(db: AsyncSession, model: OcrModel) -> tuple[str, 
             api_key = ps.api_key or ""
         if not base_url:
             base_url = ps.base_url or ""
+    if not api_key:
+        api_key = get_settings().provider_api_key(provider_type)
     return api_key.strip(), base_url.strip(), provider_type
 
 
 async def _resolve_prompt(db: AsyncSession, model: OcrModel) -> str:
-    """Resolve prompt: model-specific > default > empty (provider will use its own)."""
+    """Resolve system prompt: model-specific > default > empty (no builtin fallback).
+
+    Kept for the playground "resolved prompt" display, which distinguishes
+    model/default/builtin sources itself.
+    """
     # 1. Model-specific prompt
     result = await db.execute(
         select(PromptSetting).where(PromptSetting.model_id == model.id)
@@ -64,6 +70,66 @@ async def _resolve_prompt(db: AsyncSession, model: OcrModel) -> str:
         return prompt.prompt_text
 
     return ""
+
+
+async def _resolve_prompts(db: AsyncSession, model: OcrModel) -> tuple[str, str]:
+    """Resolve (system_prompt, user_prompt) for OCR execution.
+
+    Resolution order:
+    - A model-specific PromptSetting wins; its ``prompt_text`` (system) and
+      ``user_prompt_text`` (user) are used verbatim. An empty system means
+      "send no system message" (e.g. PaddleOCR-VL with only ``OCR:`` as user).
+    - Otherwise the default prompt supplies the system prompt (no user prompt).
+    - Otherwise fall back to the builtin DEFAULT_OCR_PROMPT system prompt.
+    The user prompt being empty lets each provider apply its own default.
+    """
+    result = await db.execute(
+        select(PromptSetting).where(PromptSetting.model_id == model.id)
+    )
+    row = result.scalar_one_or_none()
+    if row is not None:
+        return (row.prompt_text or ""), (getattr(row, "user_prompt_text", "") or "")
+
+    result = await db.execute(select(PromptSetting).where(PromptSetting.is_default))
+    drow = result.scalar_one_or_none()
+    if drow is not None:
+        return (drow.prompt_text or ""), ""
+
+    return DEFAULT_OCR_PROMPT, ""
+
+
+async def _resolve_prompts_for_benchmark(
+    db: AsyncSession, model: OcrModel, benchmark: str
+) -> tuple[str, str]:
+    """Resolve (system, user) prompts for a model running under an official benchmark.
+
+    Order: (benchmark + model) > (benchmark default, model_id None) > falls back
+    to the normal per-model resolution (model > global default > builtin).
+    """
+    # 1. benchmark + this model
+    result = await db.execute(
+        select(PromptSetting).where(
+            PromptSetting.benchmark == benchmark,
+            PromptSetting.model_id == model.id,
+        )
+    )
+    row = result.scalar_one_or_none()
+    if row is not None:
+        return (row.prompt_text or ""), (getattr(row, "user_prompt_text", "") or "")
+
+    # 2. benchmark default (no model)
+    result = await db.execute(
+        select(PromptSetting).where(
+            PromptSetting.benchmark == benchmark,
+            PromptSetting.model_id.is_(None),
+        )
+    )
+    row = result.scalar_one_or_none()
+    if row is not None:
+        return (row.prompt_text or ""), (getattr(row, "user_prompt_text", "") or "")
+
+    # 3. fall back to the standard per-model resolution
+    return await _resolve_prompts(db, model)
 
 
 # Config keys used internally, must NOT be passed directly to provider APIs
@@ -125,6 +191,11 @@ async def resolve_prompt(db: AsyncSession, model: OcrModel) -> str:
     return await _resolve_prompt(db, model)
 
 
+async def resolve_prompts(db: AsyncSession, model: OcrModel) -> tuple[str, str]:
+    """Resolve (system_prompt, user_prompt) for a model (public wrapper)."""
+    return await _resolve_prompts(db, model)
+
+
 def get_provider(
     provider_name: str,
     model_id: str,
@@ -140,7 +211,14 @@ def get_provider(
 
 
 async def select_random_models(db: AsyncSession, count: int = 2) -> list[OcrModel]:
-    result = await db.execute(select(OcrModel).where(OcrModel.is_active))
+    result = await db.execute(
+        select(OcrModel)
+        .outerjoin(ProviderSetting, ProviderSetting.id == OcrModel.provider)
+        .where(
+            OcrModel.is_active,
+            or_(ProviderSetting.id.is_(None), ProviderSetting.is_enabled.is_(True)),
+        )
+    )
     models = list(result.scalars().all())
     if len(models) < count:
         raise ValueError(f"Not enough active models. Need {count}, have {len(models)}")
@@ -167,15 +245,20 @@ async def run_ocr(
     db: AsyncSession | None = None,
     prompt_override: str | None = None,
     temperature_override: float | None = None,
+    benchmark: str | None = None,
 ) -> OcrResult:
     api_key = model.api_key or ""
     base_url = model.base_url or ""
     provider_type = model.provider
     prompt = ""
+    user_prompt = ""
 
     if db:
         api_key, base_url, provider_type = await _resolve_credentials(db, model)
-        prompt = await _resolve_prompt(db, model)
+        if benchmark:
+            prompt, user_prompt = await _resolve_prompts_for_benchmark(db, model, benchmark)
+        else:
+            prompt, user_prompt = await _resolve_prompts(db, model)
 
     if prompt_override is not None:
         prompt = prompt_override
@@ -188,13 +271,21 @@ async def run_ocr(
 
     # Resolve postprocessor from model config
     postprocessor_name = extra_config.get("postprocessor", "")
+    # olmOCR-Bench tests require running headers/footers removed → use the
+    # dots.ocr "nohf" converter there. OmniDocBench's ground truth *includes*
+    # Page-header/footer blocks (our v1.6 eval), so keeping them scores better;
+    # empirically nohf slightly hurt OmniDocBench, so it stays header-inclusive.
+    if benchmark == "olmocr_bench" and postprocessor_name == "dots_json_to_md":
+        postprocessor_name = "dots_json_to_md_nohf"
 
     # Handle PDF: split into pages, OCR each, merge
     if mime_type == "application/pdf":
         settings = get_settings()
-        result = await _run_ocr_pdf(provider, image_data, prompt, settings.pdf_dpi, settings.max_pdf_pages)
+        result = await _run_ocr_pdf(
+            provider, image_data, prompt, user_prompt, settings.pdf_dpi, settings.max_pdf_pages
+        )
     else:
-        result = await provider.process_image(image_data, mime_type, prompt)
+        result = await provider.process_image(image_data, mime_type, prompt, user_prompt)
 
     # Global post-processing: strip code fences (```markdown ... ```)
     if result.text and not result.error:
@@ -212,7 +303,7 @@ async def run_ocr(
 
 
 async def _run_ocr_pdf(
-    provider: OcrProvider, pdf_data: bytes, prompt: str,
+    provider: OcrProvider, pdf_data: bytes, prompt: str, user_prompt: str = "",
     dpi: float = 216.0, max_pages: int = 50,
 ) -> OcrResult:
     """Split PDF into page images, OCR each page in parallel, merge results."""
@@ -226,14 +317,17 @@ async def _run_ocr_pdf(
         return OcrResult(text="", latency_ms=0, error="PDF has no pages")
 
     # Process first page alone to fail fast on auth/config errors
-    first_result = await provider.process_image(pages[0][0], pages[0][1], prompt)
+    first_result = await provider.process_image(pages[0][0], pages[0][1], prompt, user_prompt)
     if first_result.error:
         latency = int((time.time() - start) * 1000)
         return OcrResult(text="", latency_ms=latency, error=first_result.error)
 
     # First page succeeded — process remaining pages in parallel
     if len(pages) > 1:
-        remaining_tasks = [provider.process_image(img_bytes, img_mime, prompt) for img_bytes, img_mime in pages[1:]]
+        remaining_tasks = [
+            provider.process_image(img_bytes, img_mime, prompt, user_prompt)
+            for img_bytes, img_mime in pages[1:]
+        ]
         remaining_results = await asyncio.gather(*remaining_tasks, return_exceptions=True)
         results = [first_result, *remaining_results]
     else:
@@ -332,10 +426,11 @@ async def run_ocr_stream(
     base_url = model.base_url or ""
     provider_type = model.provider
     prompt = ""
+    user_prompt = ""
 
     if db:
         api_key, base_url, provider_type = await _resolve_credentials(db, model)
-        prompt = await _resolve_prompt(db, model)
+        prompt, user_prompt = await _resolve_prompts(db, model)
 
     if prompt_override is not None:
         prompt = prompt_override
@@ -356,10 +451,10 @@ async def run_ocr_stream(
         for page_idx, (page_bytes, page_mime) in enumerate(pages):
             if page_idx > 0:
                 yield f"\n\n---\n\n<!-- Page {page_idx + 1} -->\n\n"
-            raw = provider.process_image_stream(page_bytes, page_mime, prompt)
+            raw = provider.process_image_stream(page_bytes, page_mime, prompt, user_prompt)
             async for chunk in _strip_stream_fences(raw):
                 yield chunk
     else:
-        raw = provider.process_image_stream(image_data, mime_type, prompt)
+        raw = provider.process_image_stream(image_data, mime_type, prompt, user_prompt)
         async for chunk in _strip_stream_fences(raw):
             yield chunk

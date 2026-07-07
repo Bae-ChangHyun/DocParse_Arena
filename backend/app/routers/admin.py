@@ -35,14 +35,18 @@ router = APIRouter(prefix="/api/admin", tags=["admin"], dependencies=[Depends(re
 @public_router.get("/auth-status")
 async def auth_status():
     settings = get_settings()
-    return {"auth_required": bool(settings.admin_password)}
+    return {
+        "auth_required": bool(settings.admin_password) or not settings.allow_unprotected_admin,
+        "admin_configured": bool(settings.admin_password),
+        "unprotected_admin": bool(settings.allow_unprotected_admin and not settings.admin_password),
+    }
 
 
 @public_router.post("/login")
 async def admin_login(data: AdminLoginRequest):
     settings = get_settings()
     if not settings.admin_password:
-        raise HTTPException(status_code=400, detail="No password is set. Admin access is open.")
+        raise HTTPException(status_code=503, detail="ADMIN_PASSWORD is not set.")
     if not hmac.compare_digest(data.password, settings.admin_password):
         raise HTTPException(status_code=401, detail="Invalid password")
     token = create_token()
@@ -64,6 +68,11 @@ URL_BASED_TYPES = {"custom"}
 KEY_BASED_TYPES = {"claude", "openai", "gemini", "mistral"}
 
 
+def _effective_provider_api_key(provider: ProviderSetting) -> str:
+    ptype = provider.provider_type or provider.id
+    return (provider.api_key or "").strip() or get_settings().provider_api_key(ptype)
+
+
 # ── Provider Settings ──────────────────────────────────────────
 
 @router.get("/providers", response_model=list[ProviderSettingOut])
@@ -78,6 +87,7 @@ async def list_providers(db: AsyncSession = Depends(get_db)):
                 id=bp["id"],
                 display_name=bp["display_name"],
                 provider_type=bp["provider_type"],
+                is_enabled=bool(get_settings().provider_api_key(bp["provider_type"])),
             )
             db.add(ps)
             existing[bp["id"]] = ps
@@ -88,7 +98,11 @@ async def list_providers(db: AsyncSession = Depends(get_db)):
     for bp in BUILTIN_PROVIDERS:
         p = existing[bp["id"]]
         await db.refresh(p)
-        providers.append(ProviderSettingOut.model_validate(p))
+        provider_out = ProviderSettingOut.model_validate(p)
+        env_key = get_settings().provider_api_key(p.provider_type or p.id)
+        if not provider_out.api_key and env_key:
+            provider_out = provider_out.model_copy(update={"api_key": env_key})
+        providers.append(provider_out)
     return providers
 
 
@@ -138,9 +152,9 @@ async def test_provider(provider_id: str, db: AsyncSession = Depends(get_db)):
         if not base_url:
             message = "Base URL is not configured"
         else:
-            ok, message = await _test_url(base_url, ptype, (provider.api_key or "").strip())
+            ok, message = await _test_url(base_url, ptype, _effective_provider_api_key(provider))
     elif ptype in KEY_BASED_TYPES:
-        api_key = (provider.api_key or "").strip()
+        api_key = _effective_provider_api_key(provider)
         if not api_key:
             message = "API key is not configured"
         else:
@@ -186,9 +200,9 @@ async def test_all_providers(db: AsyncSession = Depends(get_db)):
             if not base_url:
                 message = "Base URL is not configured"
             else:
-                ok, message = await _test_url(base_url, ptype, (provider.api_key or "").strip())
+                ok, message = await _test_url(base_url, ptype, _effective_provider_api_key(provider))
         elif ptype in KEY_BASED_TYPES:
-            api_key = (provider.api_key or "").strip()
+            api_key = _effective_provider_api_key(provider)
             if not api_key:
                 message = "API key is not configured"
             else:
@@ -384,7 +398,7 @@ async def list_provider_models(provider_id: str, db: AsyncSession = Depends(get_
         raise HTTPException(status_code=404, detail="Provider not found")
 
     ptype = provider.provider_type or provider_id
-    api_key = (provider.api_key or "").strip()
+    api_key = _effective_provider_api_key(provider)
     base_url = (provider.base_url or "").strip()
     settings = get_settings()
     try:
@@ -393,7 +407,8 @@ async def list_provider_models(provider_id: str, db: AsyncSession = Depends(get_
                 ptype,
                 api_key,
                 base_url,
-                allow_private_custom_url=bool(settings.admin_password),
+                allow_private_custom_url=bool(settings.admin_password)
+                or settings.allow_unprotected_admin,
             )
         }
     except Exception as e:
@@ -410,7 +425,8 @@ async def list_model_options(data: ModelOptionsRequest):
                 data.provider.strip(),
                 data.api_key.strip(),
                 data.base_url.strip(),
-                allow_private_custom_url=bool(settings.admin_password),
+                allow_private_custom_url=bool(settings.admin_password)
+                or settings.allow_unprotected_admin,
             )
         }
     except Exception as e:
@@ -438,7 +454,7 @@ async def list_all_models(db: AsyncSession = Depends(get_db)):
             if ptype in URL_BASED_TYPES:
                 data["provider_ok"] = bool(ps.base_url)
             elif ptype in KEY_BASED_TYPES:
-                data["provider_ok"] = bool(ps.api_key or m.api_key)
+                data["provider_ok"] = bool(m.api_key or _effective_provider_api_key(ps))
             else:
                 data["provider_ok"] = True
         elif m.provider in URL_BASED_TYPES:
@@ -562,10 +578,13 @@ async def create_prompt(data: PromptSettingCreate, db: AsyncSession = Depends(ge
         for p in result.scalars().all():
             p.is_default = False
 
-    # If model_id specified, remove existing prompt for that model
+    # If model_id specified, remove existing prompt for that (model, benchmark) scope
     if data.model_id:
         result = await db.execute(
-            select(PromptSetting).where(PromptSetting.model_id == data.model_id)
+            select(PromptSetting).where(
+                PromptSetting.model_id == data.model_id,
+                PromptSetting.benchmark == data.benchmark,
+            )
         )
         existing = result.scalar_one_or_none()
         if existing:
@@ -574,8 +593,10 @@ async def create_prompt(data: PromptSettingCreate, db: AsyncSession = Depends(ge
     prompt = PromptSetting(
         name=data.name,
         prompt_text=data.prompt_text,
+        user_prompt_text=data.user_prompt_text,
         is_default=data.is_default,
         model_id=data.model_id,
+        benchmark=data.benchmark,
     )
     db.add(prompt)
     await db.commit()

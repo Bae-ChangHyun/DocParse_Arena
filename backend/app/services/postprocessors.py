@@ -104,51 +104,124 @@ def lighton_clean(text: str) -> str:
     return text.strip()
 
 
-def dots_json_to_md(text: str) -> str:
-    """Convert dots.ocr JSON layout output to Markdown.
+# ── dots.ocr official layoutjson2md port ─────────────────────
+# Verbatim port of dots_ocr/utils/format_transformer.py (layoutjson2md +
+# get_formula_in_markdown + clean_text + helpers) so benchmark scores match the
+# official dots.ocr leaderboard runner. The one deviation: 'Picture' cells embed
+# a base64 image crop in the original, which we can't do here (no image at the
+# postprocessor layer) — pictures are dropped, which doesn't affect the
+# text/formula/table/reading-order metrics.
+_DOTS_LATEX_PATTERNS = [
+    r"\$\$.*?\$\$",
+    r"\$[^$\n]+?\$",
+    r"\\begin\{.*?\}.*?\\end\{.*?\}",
+    r"\\[a-zA-Z]+\{.*?\}",
+    r"\\[a-zA-Z]+",
+    r"\\\[.*?\\\]",
+    r"\\\(.*?\\\)",
+]
+_DOTS_PREAMBLE_PATTERNS = [
+    r"\\documentclass\{[^}]+\}",
+    r"\\usepackage\{[^}]+\}",
+    r"\\usepackage\[[^\]]*\]\{[^}]+\}",
+    r"\\begin\{document\}",
+    r"\\end\{document\}",
+]
 
-    The model outputs a JSON object with a 'layout' array of elements,
-    each having 'category', 'text', and 'bbox' fields.
-    """
+
+def _dots_has_latex(text: str) -> bool:
+    if not isinstance(text, str):
+        return False
+    return any(re.search(p, text, re.DOTALL) for p in _DOTS_LATEX_PATTERNS)
+
+
+def _dots_clean_latex_preamble(text: str) -> str:
+    for pattern in _DOTS_PREAMBLE_PATTERNS:
+        text = re.sub(pattern, "", text, flags=re.IGNORECASE)
+    return text
+
+
+def _dots_formula_md(text: str) -> str:
     text = text.strip()
+    if text.startswith("$$") and text.endswith("$$"):
+        inner = text[2:-2].strip()
+        return f"$$\n{inner}\n$$" if "$" not in inner else text
+    if text.startswith("\\[") and text.endswith("\\]"):
+        return f"$$\n{text[2:-2].strip()}\n$$"
+    if len(re.findall(r".*\\\[.*\\\].*", text)) > 0:
+        return text
+    if len(re.findall(r"\$([^$]+)\$", text)) > 0:  # inline formula, keep as-is
+        return text
+    if not _dots_has_latex(text):
+        return text
+    if "usepackage" in text:
+        text = _dots_clean_latex_preamble(text)
+    if text and text[0] == "`" and text[-1] == "`":
+        text = text[1:-1]
+    return f"$$\n{text}\n$$"
 
+
+def _dots_clean_text(text: str) -> str:
+    if not text:
+        return ""
+    text = text.strip()
+    if text[:2] == "`$" and text[-2:] == "$`":
+        text = text[1:-1]
+    return text
+
+
+def dots_json_to_md(text: str, no_page_hf: bool = False) -> str:
+    """Convert dots.ocr layout JSON to Markdown (official layoutjson2md logic).
+
+    ``prompt_layout_all_en`` returns a JSON **array** of cells (bbox/category/text,
+    reading-order sorted); some variants wrap it as ``{"layout": [...]}``. Non-JSON
+    (e.g. plain ``prompt_ocr`` output) passes through unchanged.
+    """
+    text = strip_code_fences(text).strip()
     try:
         data = json.loads(text)
     except json.JSONDecodeError:
-        # Not valid JSON - return as-is (might be simple markdown mode)
         return text
 
-    if not isinstance(data, dict) or "layout" not in data:
+    if isinstance(data, dict):
+        cells = data.get("layout")
+        if not isinstance(cells, list):
+            return text
+    elif isinstance(data, list):
+        cells = data
+    else:
         return text
 
-    parts = []
-    for element in data.get("layout", []):
-        category = element.get("category", "Text")
-        content = element.get("text", "")
-
-        if not content:
+    items: list[str] = []
+    for cell in cells:
+        if not isinstance(cell, dict):
             continue
-
-        if category == "Title":
-            parts.append(f"# {content}")
-        elif category == "Section-header":
-            parts.append(f"## {content}")
-        elif category == "List-item":
-            parts.append(f"- {content}")
-        elif category == "Formula":
-            parts.append(f"$${content}$$")
-        elif category == "Table":
-            parts.append(content)  # Already HTML formatted
-        elif category == "Caption":
-            parts.append(f"*{content}*")
-        elif category == "Footnote":
-            parts.append(f"> {content}")
-        elif category in ("Page-header", "Page-footer", "Picture"):
+        category = cell.get("category", "Text")
+        content = cell.get("text", "")
+        if no_page_hf and category in ("Page-header", "Page-footer"):
             continue
+        if category == "Picture":
+            # Official layoutjson2md emits ![](base64_crop) to hold the picture's
+            # place in reading order. We have no image, so emit an empty image
+            # placeholder — keeps the reading-order position without adding text.
+            items.append("![]()")
+            continue
+        if category == "Formula":
+            items.append(_dots_formula_md(content))
         else:
-            parts.append(content)
+            items.append(_dots_clean_text(content))
 
-    return "\n\n".join(parts) if parts else text
+    return "\n\n".join(items) if items else text
+
+
+def dots_json_to_md_nohf(text: str) -> str:
+    """dots.ocr JSON → Markdown, dropping Page-header/Page-footer cells.
+
+    Used for olmOCR-Bench, whose tests require running headers/footers to be
+    removed. OmniDocBench keeps them (its ground truth includes them), so the
+    plain ``dots_json_to_md`` is used there.
+    """
+    return dots_json_to_md(text, no_page_hf=True)
 
 
 # ── Registry of available postprocessors ──────────────────
@@ -157,6 +230,7 @@ POSTPROCESSORS: dict[str, Callable[[str], str]] = {
     "deepseek_clean": deepseek_clean,
     "lighton_clean": lighton_clean,
     "dots_json_to_md": dots_json_to_md,
+    "dots_json_to_md_nohf": dots_json_to_md_nohf,
 }
 
 

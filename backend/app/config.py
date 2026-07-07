@@ -18,7 +18,22 @@ class Settings(BaseSettings):
 
     sample_docs_dir: str = os.path.join(os.path.dirname(os.path.dirname(__file__)), "sample_docs")
 
+    # Benchmark collection uploads (persisted to disk, gitignored under data/)
+    batch_uploads_dir: str = "./data/collections"
+    # Official benchmark datasets (OmniDocBench, olmOCR-Bench) live here
+    benchmarks_dir: str = "./data/benchmarks"
+    # Repo-level bench/ dir holding scorer wrappers + olmocr venv
+    bench_root: str = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "bench"
+    )
+    # Max concurrent OCR calls within a single batch run
+    batch_concurrency: int = 6
+    # OmniDocBench CDM (formula) metric is slow; allow disabling per deployment
+    omnidocbench_enable_cdm: bool = True
+    omnidocbench_workers: int = 8
+
     admin_password: str = ""
+    allow_unprotected_admin: bool = False
 
     cors_origins: list[str] = ["http://localhost:3000"]
 
@@ -51,6 +66,15 @@ class Settings(BaseSettings):
         if not hasattr(self, "_runtime_jwt_secret"):
             object.__setattr__(self, "_runtime_jwt_secret", secrets.token_hex(32))
         return self._runtime_jwt_secret
+
+    def provider_api_key(self, provider_type: str) -> str:
+        """Return the environment API key for a built-in provider type."""
+        return {
+            "claude": self.anthropic_api_key,
+            "openai": self.openai_api_key,
+            "gemini": self.google_api_key,
+            "mistral": self.mistral_api_key,
+        }.get(provider_type, "").strip()
 
 
 @lru_cache

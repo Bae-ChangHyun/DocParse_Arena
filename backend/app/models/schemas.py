@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel, field_serializer
 
 
@@ -54,7 +56,7 @@ class OcrModelAdmin(BaseModel):
 class OcrModelCreate(BaseModel):
     name: str
     display_name: str
-    icon: str = "🤖"
+    icon: str = "AI"
     provider: str
     model_id: str
     api_key: str = ""
@@ -109,6 +111,12 @@ class BattleStartResponse(BaseModel):
     document_url: str
     model_a_label: str
     model_b_label: str
+
+
+class BattleAbortResponse(BaseModel):
+    battle_id: str
+    model_a_latency_ms: int
+    model_b_latency_ms: int
 
 
 class BattleStreamEvent(BaseModel):
@@ -171,8 +179,10 @@ class PromptSettingOut(BaseModel):
     id: str
     name: str
     prompt_text: str
+    user_prompt_text: str = ""
     is_default: bool
     model_id: str | None = None
+    benchmark: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -180,15 +190,19 @@ class PromptSettingOut(BaseModel):
 class PromptSettingCreate(BaseModel):
     name: str
     prompt_text: str
+    user_prompt_text: str = ""
     is_default: bool = False
     model_id: str | None = None
+    benchmark: str | None = None
 
 
 class PromptSettingUpdate(BaseModel):
     name: str | None = None
     prompt_text: str | None = None
+    user_prompt_text: str | None = None
     is_default: bool | None = None
     model_id: str | None = None
+    benchmark: str | None = None
 
 
 class AdminLoginRequest(BaseModel):
@@ -199,3 +213,79 @@ class OcrResult(BaseModel):
     text: str
     latency_ms: int
     error: str | None = None
+
+
+# ── Benchmark collections & batch runs ───────────────────────
+class CollectionCreate(BaseModel):
+    name: str
+    description: str = ""
+
+
+class CollectionDocumentOut(BaseModel):
+    id: str
+    original_name: str
+    mime_type: str
+    size: int
+
+    model_config = {"from_attributes": True}
+
+
+class CollectionOut(BaseModel):
+    id: str
+    name: str
+    description: str
+    kind: str = "user"
+    created_at: datetime
+    document_count: int = 0
+
+    model_config = {"from_attributes": True}
+
+
+class BatchRunCreate(BaseModel):
+    collection_id: str
+    model_ids: list[str]
+
+
+class BatchRunOut(BaseModel):
+    id: str
+    collection_id: str
+    status: str
+    total: int
+    completed: int
+    benchmark_kind: str | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class OfficialBenchmarkOut(BaseModel):
+    kind: str
+    name: str
+    downloaded: bool
+    document_count: int
+    collection_id: str | None = None
+
+
+class BatchRunItemOut(BaseModel):
+    document_id: str
+    model_id: str
+    status: str
+    result_text: str | None = None
+    latency_ms: int | None = None
+    error: str | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class BatchRunDetail(BaseModel):
+    id: str
+    collection_id: str
+    status: str
+    total: int
+    completed: int
+    created_at: datetime
+    benchmark_kind: str | None = None
+    summary_scores: dict = {}
+    documents: list[CollectionDocumentOut]
+    model_ids: list[str]
+    items: list[BatchRunItemOut]

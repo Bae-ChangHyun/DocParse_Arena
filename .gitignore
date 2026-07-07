@@ -36,6 +36,15 @@ backend/sample_docs/*
 # Temp docs
 docs/temp/
 
+# Benchmark toolkits (vendored clones, venv, datasets — large / restored from source)
+bench/vendor/
+bench/olmocr_env/
+
+# Agent session memory (per-user, not project content)
+AGENTS.md
+CLAUDE.md
+HANDOFF.md
+
 # Misc
 todo.md
 temp.md

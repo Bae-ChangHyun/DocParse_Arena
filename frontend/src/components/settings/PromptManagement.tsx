@@ -50,8 +50,10 @@ export default function PromptManagement() {
   const [form, setForm] = useState<PromptSettingCreate>({
     name: "",
     prompt_text: "",
+    user_prompt_text: "",
     is_default: false,
     model_id: null,
+    benchmark: null,
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -72,7 +74,7 @@ export default function PromptManagement() {
 
   const openCreate = () => {
     setEditingId(null);
-    setForm({ name: "", prompt_text: "", is_default: false, model_id: null });
+    setForm({ name: "", prompt_text: "", user_prompt_text: "", is_default: false, model_id: null, benchmark: null });
     setDialogOpen(true);
   };
 
@@ -81,11 +83,16 @@ export default function PromptManagement() {
     setForm({
       name: prompt.name,
       prompt_text: prompt.prompt_text,
+      user_prompt_text: prompt.user_prompt_text ?? "",
       is_default: prompt.is_default,
       model_id: prompt.model_id,
+      benchmark: prompt.benchmark ?? null,
     });
     setDialogOpen(true);
   };
+
+  const benchmarkLabel = (b: string | null) =>
+    b === "omnidocbench" ? "OmniDocBench" : b === "olmocr_bench" ? "olmOCR-Bench" : null;
 
   const handleSubmit = async () => {
     setSubmitting(true);
@@ -145,11 +152,11 @@ export default function PromptManagement() {
 
       <div className="space-y-4">
         {defaultPrompt && (
-          <Card className="border-primary/30">
+          <Card className="border-foreground/20">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Star className="h-4 w-4 text-primary fill-primary" />
+                  <Star className="h-4 w-4 fill-foreground text-foreground" />
                   <CardTitle className="text-base">{defaultPrompt.name}</CardTitle>
                   <Badge variant="default" className="text-xs">Default</Badge>
                 </div>
@@ -177,6 +184,9 @@ export default function PromptManagement() {
                       <div className="flex items-center gap-2">
                         <CardTitle className="text-base">{prompt.name}</CardTitle>
                         <Badge variant="secondary" className="text-xs">{getModelName(prompt.model_id)}</Badge>
+                        {prompt.benchmark && (
+                          <Badge variant="outline" className="text-xs">{benchmarkLabel(prompt.benchmark)}</Badge>
+                        )}
                       </div>
                       <div className="flex gap-1">
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(prompt)}>
@@ -188,10 +198,23 @@ export default function PromptManagement() {
                       </div>
                     </div>
                   </CardHeader>
-                  <CardContent>
-                    <pre className="text-xs bg-muted p-3 rounded-md whitespace-pre-wrap font-mono max-h-24 overflow-y-auto">
-                      {prompt.prompt_text}
-                    </pre>
+                  <CardContent className="space-y-2">
+                    {prompt.prompt_text && (
+                      <div>
+                        <p className="text-[11px] text-muted-foreground mb-1">System</p>
+                        <pre className="text-xs bg-muted p-3 rounded-md whitespace-pre-wrap font-mono max-h-24 overflow-y-auto">
+                          {prompt.prompt_text}
+                        </pre>
+                      </div>
+                    )}
+                    {prompt.user_prompt_text && (
+                      <div>
+                        <p className="text-[11px] text-muted-foreground mb-1">User</p>
+                        <pre className="text-xs bg-muted p-3 rounded-md whitespace-pre-wrap font-mono max-h-24 overflow-y-auto">
+                          {prompt.user_prompt_text}
+                        </pre>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))}
@@ -207,7 +230,12 @@ export default function PromptManagement() {
                 <Card key={prompt.id}>
                   <CardHeader className="pb-2">
                     <div className="flex items-center justify-between">
-                      <CardTitle className="text-base">{prompt.name}</CardTitle>
+                      <div className="flex items-center gap-2">
+                        <CardTitle className="text-base">{prompt.name}</CardTitle>
+                        {prompt.benchmark && (
+                          <Badge variant="outline" className="text-xs">{benchmarkLabel(prompt.benchmark)}</Badge>
+                        )}
+                      </div>
                       <div className="flex gap-1">
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(prompt)}>
                           <Pencil className="h-3.5 w-3.5" />
@@ -251,7 +279,7 @@ export default function PromptManagement() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Prompt Text</Label>
+              <Label className="text-xs">System Prompt</Label>
               <Textarea
                 value={form.prompt_text}
                 onChange={(e) => setForm({ ...form, prompt_text: e.target.value })}
@@ -259,6 +287,23 @@ export default function PromptManagement() {
                 rows={8}
                 className="font-mono text-sm max-h-64 overflow-y-auto"
               />
+              <p className="text-[11px] text-muted-foreground">
+                Sent as the system message. Leave empty to send no system message
+                (some models like PaddleOCR-VL expect no system prompt).
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">User Prompt (optional)</Label>
+              <Textarea
+                value={form.user_prompt_text ?? ""}
+                onChange={(e) => setForm({ ...form, user_prompt_text: e.target.value })}
+                placeholder="e.g., OCR:  (PaddleOCR-VL official prompt). Empty = provider default ('Convert this document to markdown.')"
+                rows={3}
+                className="font-mono text-sm max-h-40 overflow-y-auto"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Text placed in the user turn next to the image.
+              </p>
             </div>
             <div className="flex items-center gap-2">
               <Switch
@@ -290,10 +335,60 @@ export default function PromptManagement() {
                 </p>
               </div>
             )}
+            {!form.is_default && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Scope to Benchmark (optional)</Label>
+                <Select
+                  value={form.benchmark || "_none"}
+                  onValueChange={(v) => setForm({ ...form, benchmark: v === "_none" ? null : v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="All runs" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_none">All runs (not benchmark-specific)</SelectItem>
+                    <SelectItem value="omnidocbench">OmniDocBench</SelectItem>
+                    <SelectItem value="olmocr_bench">olmOCR-Bench</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">
+                  Used only when running that official benchmark. Combine with a model to set a
+                  per-model prompt for that benchmark; leave the model empty for a benchmark-wide default.
+                </p>
+                {form.benchmark === "omnidocbench" && (
+                  <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-2.5 text-[11px] leading-relaxed">
+                    <p className="font-medium">Required output format — OmniDocBench</p>
+                    <ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted-foreground">
+                      <li>Output one page as <b>Markdown</b> (no explanations, no code fences).</li>
+                      <li>Tables as <b>HTML &lt;table&gt;</b> — TEDS scoring parses this.</li>
+                      <li>Formulas as <b>LaTeX</b> (<code>$...$</code> / <code>$$...$$</code>) — CDM scoring depends on it.</li>
+                      <li>Preserve <b>reading order</b>, headings, lists.</li>
+                    </ul>
+                    <p className="mt-1 text-muted-foreground">
+                      Scored by edit distance / TEDS / CDM — deviating from this format lowers scores.
+                    </p>
+                  </div>
+                )}
+                {form.benchmark === "olmocr_bench" && (
+                  <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-2.5 text-[11px] leading-relaxed">
+                    <p className="font-medium">Required output format — olmOCR-Bench</p>
+                    <ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted-foreground">
+                      <li>Output <b>Markdown / plain text</b> in natural <b>reading order</b>.</li>
+                      <li>Transcribe body text <b>verbatim</b> — pass/fail unit tests look for exact strings.</li>
+                      <li>Do <b>not</b> repeat running headers/footers.</li>
+                      <li>Formulas as LaTeX; tables as Markdown or HTML.</li>
+                    </ul>
+                    <p className="mt-1 text-muted-foreground">
+                      Scored by deterministic unit tests (pass-rate) — missing/altered text fails tests.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSubmit} disabled={submitting || !form.name || !form.prompt_text}>
+            <Button onClick={handleSubmit} disabled={submitting || !form.name || (!form.prompt_text && !form.user_prompt_text)}>
               {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               {editingId ? "Update" : "Create"}
             </Button>
