@@ -2,14 +2,14 @@ import os
 
 import aiofiles
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
-from app.models.database import OcrModel, get_db
+from app.models.database import OcrModel, PromptSetting, ProviderSetting, get_db
 from app.models.schemas import OcrModelOut, PlaygroundResponse
 from app.ocr_providers.base import DEFAULT_OCR_PROMPT
-from app.services.ocr_service import resolve_prompt, run_ocr
+from app.services.ocr_service import resolve_prompts, run_ocr
 from app.utils.file_validation import validate_file_content
 from app.utils.mime import ALLOWED_EXTENSIONS, extension_to_mime
 from app.utils.path_security import resolve_path_within
@@ -20,7 +20,13 @@ router = APIRouter(prefix="/api/playground", tags=["playground"])
 @router.get("/models", response_model=list[OcrModelOut])
 async def list_models(db: AsyncSession = Depends(get_db)):
     result = await db.execute(
-        select(OcrModel).where(OcrModel.is_active).order_by(OcrModel.elo.desc())
+        select(OcrModel)
+        .outerjoin(ProviderSetting, ProviderSetting.id == OcrModel.provider)
+        .where(
+            OcrModel.is_active,
+            or_(ProviderSetting.id.is_(None), ProviderSetting.is_enabled.is_(True)),
+        )
+        .order_by(OcrModel.elo.desc())
     )
     return [OcrModelOut.model_validate(m) for m in result.scalars().all()]
 
@@ -32,21 +38,25 @@ async def get_resolved_prompt(model_id: str, db: AsyncSession = Depends(get_db))
     if not model:
         raise HTTPException(status_code=404, detail="Model not found")
 
-    prompt = await resolve_prompt(db, model)
+    system_prompt, user_prompt = await resolve_prompts(db, model)
 
-    if prompt:
-        # Determine source
-        from app.models.database import PromptSetting
-        ms_result = await db.execute(
-            select(PromptSetting).where(PromptSetting.model_id == model_id)
-        )
-        source = "model" if ms_result.scalar_one_or_none() else "default"
+    # Determine source from where the prompt actually came (so an intentionally
+    # empty system prompt on a model-specific row still reads as "model", not
+    # "builtin" — important for models like PaddleOCR-VL that use only a user prompt).
+    ms_result = await db.execute(
+        select(PromptSetting).where(PromptSetting.model_id == model_id)
+    )
+    if ms_result.scalar_one_or_none():
+        source = "model"
     else:
-        prompt = DEFAULT_OCR_PROMPT
-        source = "builtin"
+        default_result = await db.execute(
+            select(PromptSetting).where(PromptSetting.is_default)
+        )
+        source = "default" if default_result.scalar_one_or_none() else "builtin"
 
     return {
-        "prompt": prompt,
+        "prompt": system_prompt,
+        "user_prompt": user_prompt,
         "source": source,
         "default_prompt": DEFAULT_OCR_PROMPT,
     }

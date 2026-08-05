@@ -31,21 +31,21 @@ export default function DocumentUpload({ onFileSelect, onRandomDoc, isLoading }:
   );
 
   return (
-    <div className="flex flex-col items-center gap-6 p-8 max-w-lg mx-auto">
-      <div className="text-center mb-2">
-        <div className="flex items-center justify-center gap-2 mb-3">
-          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-            <FileText className="h-5 w-5 text-primary" />
+    <div className="mx-auto flex max-w-lg flex-col items-center gap-6 p-8">
+      <div className="mb-2 text-center">
+        <div className="mb-3 flex items-center justify-center gap-2">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-muted">
+            <FileText className="h-5 w-5 text-foreground" />
           </div>
         </div>
         <h2 className="text-xl font-semibold">Start a Battle</h2>
-        <p className="text-sm text-muted-foreground mt-1">
+        <p className="mx-auto mt-1 max-w-[30ch] text-sm text-muted-foreground sm:max-w-none">
           Upload a document and two anonymous models will parse it
         </p>
       </div>
 
       <div
-        className="w-full rounded-xl border-2 border-dashed border-primary/20 bg-primary/[0.02] p-8 text-center cursor-pointer hover:border-primary/40 hover:bg-primary/[0.04] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        className="w-full cursor-pointer rounded-xl border-2 border-dashed border-border bg-muted/30 p-8 text-center transition-all hover:border-muted-foreground hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         role="button"
         tabIndex={0}
         aria-label="Upload a document by dropping or clicking"
@@ -59,10 +59,10 @@ export default function DocumentUpload({ onFileSelect, onRandomDoc, isLoading }:
           }
         }}
       >
-        <div className="h-12 w-12 rounded-full bg-accent mx-auto mb-4 flex items-center justify-center">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
           <Upload className="h-5 w-5 text-muted-foreground" />
         </div>
-        <p className="text-sm font-medium mb-1">
+        <p className="mb-1 text-sm font-medium">
           Drag & drop a document here
         </p>
         <p className="text-xs text-muted-foreground">
@@ -77,7 +77,7 @@ export default function DocumentUpload({ onFileSelect, onRandomDoc, isLoading }:
         />
       </div>
 
-      <div className="flex items-center gap-3 w-full text-xs text-muted-foreground">
+      <div className="flex w-full items-center gap-3 text-xs text-muted-foreground">
         <div className="h-px flex-1 bg-border" />
         or try a sample
         <div className="h-px flex-1 bg-border" />

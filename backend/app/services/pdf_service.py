@@ -1,6 +1,7 @@
 """Convert PDF files to a list of page images using pypdfium2."""
-import io
 import asyncio
+import io
+
 import pypdfium2 as pdfium
 
 

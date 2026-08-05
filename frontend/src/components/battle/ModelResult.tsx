@@ -10,7 +10,7 @@ import rehypeSanitize from "rehype-sanitize";
 import { sanitizeSchema } from "@/lib/markdown-config";
 import "katex/dist/katex.min.css";
 import "markstream-react/index.tailwind.css";
-import { preprocessOcrText } from "@/lib/markdown-utils";
+import { preprocessOcrText, stripThinking } from "@/lib/markdown-utils";
 import { Copy, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -50,17 +50,18 @@ export default function ModelResult({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const displayText = text || (isStreaming ? streamingText : null);
+  const hasFinalText = text !== null;
+  const displayText = hasFinalText ? text : (isStreaming ? streamingText : null);
 
   return (
-    <div className="flex flex-col h-full border rounded-lg overflow-hidden bg-card">
-      <div className="flex items-center justify-between px-3 py-2 border-b bg-accent/50">
+    <div className="surface-card flex h-full flex-col overflow-hidden">
+      <div className="flex items-center justify-between border-b px-4 py-3">
         <div className="flex items-center gap-2">
-          <span className="inline-flex items-center justify-center h-5 w-5 rounded text-[10px] font-bold bg-primary/10 text-primary">{label.slice(-1)}</span>
-          <span className="text-sm font-semibold">{modelName || label}</span>
+          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">{label.slice(-1)}</span>
+          <span className="text-sm font-semibold tracking-[-0.01em]">{modelName || label}</span>
           {isStreaming && (
-            <span className="flex items-center gap-1 text-xs text-blue-500">
-              <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
+            <span className="flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-foreground" />
               Streaming
             </span>
           )}
@@ -68,36 +69,42 @@ export default function ModelResult({
             <span className="text-xs text-muted-foreground">{(latencyMs / 1000).toFixed(1)}s</span>
           )}
           {eloChange !== undefined && (
-            <span className={`text-xs font-medium ${eloChange > 0 ? "text-green-600" : eloChange < 0 ? "text-red-600" : "text-muted-foreground"}`}>
+            <span className={`text-xs font-medium ${eloChange > 0 ? "text-foreground" : "text-muted-foreground"}`}>
               {eloChange > 0 ? `+${eloChange}` : eloChange} ELO
             </span>
           )}
         </div>
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleCopy} disabled={!displayText} aria-label="Copy result to clipboard">
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleCopy} disabled={!displayText} aria-label="Copy result to clipboard">
           {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
         </Button>
       </div>
 
       {isLoading ? (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="flex flex-col items-center gap-2">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">Processing...</span>
+        <div className="flex flex-1 items-center justify-center p-6">
+          <div className="w-full max-w-sm space-y-3">
+            <div className="h-3 w-24 rounded-full bg-foreground" />
+            <div className="h-2 rounded-full bg-muted" />
+            <div className="h-2 w-5/6 rounded-full bg-muted" />
+            <div className="h-2 w-2/3 rounded-full bg-muted" />
+            <div className="flex items-center gap-2 pt-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Processing...
+            </div>
           </div>
         </div>
       ) : error ? (
-        <div className="flex-1 flex items-center justify-center p-4">
-          <p className="text-sm text-destructive text-center">{error}</p>
+        <div className="flex flex-1 items-center justify-center p-6">
+          <p className="rounded-[16px] border border-destructive/20 bg-card px-4 py-3 text-center text-sm text-destructive">{error}</p>
         </div>
       ) : isStreaming && streamingText ? (
         <div className="flex-1 min-h-0 overflow-auto">
           <div className="p-4 prose prose-sm max-w-none dark:prose-invert">
-            <Suspense fallback={<pre className="text-xs font-mono whitespace-pre-wrap break-words">{streamingText}</pre>}>
-              <NodeRenderer content={streamingText} final={false} />
+            <Suspense fallback={<pre className="text-xs font-mono whitespace-pre-wrap break-words">{stripThinking(streamingText)}</pre>}>
+              <NodeRenderer content={stripThinking(streamingText)} final={false} />
             </Suspense>
           </div>
         </div>
-      ) : text ? (
+      ) : hasFinalText ? (
         <Tabs defaultValue="rendered" className="flex-1 flex flex-col min-h-0">
           <TabsList className="mx-2 mt-2 w-fit">
             <TabsTrigger value="rendered">Rendered</TabsTrigger>
@@ -109,13 +116,13 @@ export default function ModelResult({
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm, remarkMath]}
                   rehypePlugins={[rehypeKatex, rehypeRaw, [rehypeSanitize, sanitizeSchema]]}
-                >{preprocessOcrText(text)}</ReactMarkdown>
+                >{text ? preprocessOcrText(stripThinking(text)) : "No text extracted."}</ReactMarkdown>
               </div>
             </div>
           </TabsContent>
           <TabsContent value="raw" className="flex-1 min-h-0 m-0">
             <div className="h-full overflow-auto">
-              <pre className="p-4 text-xs font-mono whitespace-pre-wrap break-words">{text}</pre>
+              <pre className="p-4 text-xs font-mono whitespace-pre-wrap break-words">{text || "No text extracted."}</pre>
             </div>
           </TabsContent>
         </Tabs>

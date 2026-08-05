@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy import select, func
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.database import get_db, OcrModel, Battle, ProviderSetting
-from app.models.schemas import LeaderboardEntry, HeadToHeadEntry
+from app.models.database import Battle, OcrModel, ProviderSetting, get_db
+from app.models.schemas import HeadToHeadEntry, LeaderboardEntry
 
 router = APIRouter(prefix="/api/leaderboard", tags=["leaderboard"])
 
@@ -11,7 +11,13 @@ router = APIRouter(prefix="/api/leaderboard", tags=["leaderboard"])
 @router.get("", response_model=list[LeaderboardEntry])
 async def get_leaderboard(db: AsyncSession = Depends(get_db)):
     result = await db.execute(
-        select(OcrModel).where(OcrModel.is_active == True).order_by(OcrModel.elo.desc())
+        select(OcrModel)
+        .outerjoin(ProviderSetting, ProviderSetting.id == OcrModel.provider)
+        .where(
+            OcrModel.is_active,
+            or_(ProviderSetting.id.is_(None), ProviderSetting.is_enabled.is_(True)),
+        )
+        .order_by(OcrModel.elo.desc())
     )
     models = result.scalars().all()
 

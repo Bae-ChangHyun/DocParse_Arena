@@ -1,12 +1,13 @@
 import sys
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
 from app.config import get_settings
 from app.models.database import init_db
-from app.routers import battle, leaderboard, playground, documents, admin
+from app.routers import admin, battle, benchmark, documents, leaderboard, playground
 
 # Configure loguru: remove default handler, add custom format
 logger.remove()
@@ -22,10 +23,15 @@ async def lifespan(app: FastAPI):
     await init_db()
 
     settings = get_settings()
-    if not settings.admin_password:
+    if not settings.admin_password and settings.allow_unprotected_admin:
         logger.warning(
             "ADMIN_PASSWORD is not set — admin endpoints are unprotected. "
             "Set ADMIN_PASSWORD in .env for production use."
+        )
+    elif not settings.admin_password:
+        logger.warning(
+            "ADMIN_PASSWORD is not set — admin endpoints are disabled. "
+            "Set ADMIN_PASSWORD in .env to use Settings."
         )
 
     yield
@@ -52,6 +58,7 @@ app.include_router(battle.router)
 app.include_router(leaderboard.router)
 app.include_router(playground.router)
 app.include_router(documents.router)
+app.include_router(benchmark.router)
 app.include_router(admin.router)
 
 

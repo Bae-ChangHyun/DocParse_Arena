@@ -3,6 +3,7 @@ import json
 import os
 import time as _time_module
 import uuid
+from contextlib import suppress
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
@@ -12,7 +13,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from app.config import get_settings
 from app.models.database import Battle, OcrModel, async_session, get_db
-from app.models.schemas import BattleStartResponse, OcrModelOut, VoteRequest, VoteResponse
+from app.models.schemas import BattleAbortResponse, BattleStartResponse, OcrModelOut, VoteRequest, VoteResponse
 from app.services.elo_service import calculate_elo_change
 from app.services.ocr_service import get_postprocessor_name, run_ocr_stream, select_random_models
 from app.services.postprocessors import apply_postprocessor
@@ -28,6 +29,12 @@ _battle_file_cache: dict[str, tuple[bytes, str, float]] = {}  # battle_id -> (da
 _CACHE_TTL = 1800  # 30 minutes
 _MAX_CACHE_ENTRIES = 50
 _MAX_CACHE_SIZE_BYTES = 500 * 1024 * 1024  # 500 MB total limit
+
+
+def _elapsed_ms_since(created_at: datetime) -> int:
+    if created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=timezone.utc)
+    return max(0, int((datetime.now(timezone.utc) - created_at).total_seconds() * 1000))
 
 
 def _cleanup_stale_cache() -> None:
@@ -159,6 +166,16 @@ async def stream_battle(battle_id: str, db: AsyncSession = Depends(get_db)):
     async def event_stream():
         queue: asyncio.Queue[tuple[str, str]] = asyncio.Queue()
         results: dict[str, dict] = {}
+        stream_timeout = get_settings().stream_timeout_seconds
+
+        async def _persist_model_result(key: str, result: dict) -> None:
+            values = {f"model_{key}_latency_ms": result["latency_ms"]}
+            if get_settings().store_ocr_results:
+                values[f"model_{key}_result"] = result["text"]
+
+            async with async_session() as update_db:
+                await update_db.execute(update(Battle).where(Battle.id == battle_id).values(**values))
+                await update_db.commit()
 
         async def _stream_model(key: str, model: OcrModel):
             token_event = f"model_{key}_token"
@@ -167,12 +184,13 @@ async def stream_battle(battle_id: str, db: AsyncSession = Depends(get_db)):
             start = _time_module.time()
             collected: list[str] = []
             try:
-                async for chunk in run_ocr_stream(model, image_data, mime_type, db):
-                    collected.append(chunk)
-                    try:
-                        await queue.put((token_event, json.dumps({"token": chunk})))
-                    except asyncio.CancelledError:
-                        return
+                async with asyncio.timeout(stream_timeout):
+                    async for chunk in run_ocr_stream(model, image_data, mime_type, db):
+                        collected.append(chunk)
+                        try:
+                            await queue.put((token_event, json.dumps({"token": chunk})))
+                        except asyncio.CancelledError:
+                            return
                 latency = int((_time_module.time() - start) * 1000)
                 full_text = "".join(collected)
 
@@ -187,15 +205,26 @@ async def stream_battle(battle_id: str, db: AsyncSession = Depends(get_db)):
                 else:
                     results[key] = {"text": full_text, "latency_ms": latency, "error": None}
 
+                await _persist_model_result(key, results[key])
                 try:
                     await queue.put((done_event, json.dumps({"latency_ms": latency})))
                 except asyncio.CancelledError:
                     return
             except asyncio.CancelledError:
                 return
+            except TimeoutError:
+                latency = int((_time_module.time() - start) * 1000)
+                message = "Stream timed out"
+                results[key] = {"text": "", "latency_ms": latency, "error": message}
+                await _persist_model_result(key, results[key])
+                try:
+                    await queue.put((done_event, json.dumps({"latency_ms": latency, "error": message})))
+                except asyncio.CancelledError:
+                    return
             except Exception as e:
                 latency = int((_time_module.time() - start) * 1000)
                 results[key] = {"text": "", "latency_ms": latency, "error": sanitize_error(e)}
+                await _persist_model_result(key, results[key])
                 try:
                     await queue.put((done_event, json.dumps({"latency_ms": latency, "error": sanitize_error(e)})))
                 except asyncio.CancelledError:
@@ -203,47 +232,83 @@ async def stream_battle(battle_id: str, db: AsyncSession = Depends(get_db)):
 
         task_a = asyncio.create_task(_stream_model("a", model_a))
         task_b = asyncio.create_task(_stream_model("b", model_b))
+        completed = False
 
-        done_count = 0
-        _stream_timeout = get_settings().stream_timeout_seconds
-        while done_count < 2:
-            try:
-                event_name, event_data = await asyncio.wait_for(
-                    queue.get(), timeout=_stream_timeout
-                )
-            except asyncio.TimeoutError:
-                task_a.cancel()
-                task_b.cancel()
-                yield {
-                    "event": "error",
-                    "data": json.dumps({"error": "Stream timed out"}),
-                }
-                return
-            yield {"event": event_name, "data": event_data}
-            if event_name.endswith("_done"):
-                done_count += 1
+        try:
+            done_count = 0
+            while done_count < 2:
+                try:
+                    event_name, event_data = await asyncio.wait_for(
+                        queue.get(), timeout=stream_timeout + 10
+                    )
+                except asyncio.TimeoutError:
+                    task_a.cancel()
+                    task_b.cancel()
+                    yield {
+                        "event": "stream_error",
+                        "data": json.dumps({"error": "Stream timed out"}),
+                    }
+                    return
+                yield {"event": event_name, "data": event_data}
+                if event_name.endswith("_done"):
+                    done_count += 1
 
-        await asyncio.gather(task_a, task_b, return_exceptions=True)
+            await asyncio.gather(task_a, task_b, return_exceptions=True)
 
-        # Free cached file data
-        _battle_file_cache.pop(battle_id, None)
+            # Save results to DB (latency always; OCR text only if configured)
+            settings = get_settings()
+            async with async_session() as update_db:
+                update_result = await update_db.execute(select(Battle).where(Battle.id == battle_id))
+                battle_to_update = update_result.scalar_one()
+                for key in ("a", "b"):
+                    r = results.get(key)
+                    if r:
+                        setattr(battle_to_update, f"model_{key}_latency_ms", r["latency_ms"])
+                        if settings.store_ocr_results:
+                            setattr(battle_to_update, f"model_{key}_result", r["text"])
+                await update_db.commit()
 
-        # Save results to DB (latency always; OCR text only if configured)
-        settings = get_settings()
-        async with async_session() as update_db:
-            update_result = await update_db.execute(select(Battle).where(Battle.id == battle_id))
-            battle_to_update = update_result.scalar_one()
-            for key in ("a", "b"):
-                r = results.get(key)
-                if r:
-                    setattr(battle_to_update, f"model_{key}_latency_ms", r["latency_ms"])
-                    if settings.store_ocr_results:
-                        setattr(battle_to_update, f"model_{key}_result", r["text"])
-            await update_db.commit()
-
-        yield {"event": "done", "data": "{}"}
+            completed = True
+            yield {"event": "done", "data": "{}"}
+        finally:
+            for task in (task_a, task_b):
+                if not task.done():
+                    task.cancel()
+            with suppress(Exception):
+                await asyncio.gather(task_a, task_b, return_exceptions=True)
+            if completed:
+                _battle_file_cache.pop(battle_id, None)
 
     return EventSourceResponse(event_stream())
+
+
+@router.post("/{battle_id}/abort", response_model=BattleAbortResponse)
+async def abort_battle(battle_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Battle).where(Battle.id == battle_id))
+    battle = result.scalar_one_or_none()
+    if not battle:
+        raise HTTPException(status_code=404, detail="Battle not found")
+    if battle.winner:
+        raise HTTPException(status_code=400, detail="Already voted")
+
+    elapsed_ms = _elapsed_ms_since(battle.created_at)
+    values: dict[str, int] = {}
+    if battle.model_a_latency_ms is None:
+        values["model_a_latency_ms"] = elapsed_ms
+    if battle.model_b_latency_ms is None:
+        values["model_b_latency_ms"] = elapsed_ms
+
+    if values:
+        await db.execute(update(Battle).where(Battle.id == battle_id).values(**values))
+        await db.commit()
+        for key, value in values.items():
+            setattr(battle, key, value)
+
+    return BattleAbortResponse(
+        battle_id=battle_id,
+        model_a_latency_ms=battle.model_a_latency_ms or elapsed_ms,
+        model_b_latency_ms=battle.model_b_latency_ms or elapsed_ms,
+    )
 
 
 @router.post("/{battle_id}/vote", response_model=VoteResponse)
@@ -257,6 +322,8 @@ async def vote_battle(battle_id: str, vote: VoteRequest, db: AsyncSession = Depe
         raise HTTPException(status_code=404, detail="Battle not found")
     if battle.winner:
         raise HTTPException(status_code=400, detail="Already voted")
+    if battle.model_a_latency_ms is None or battle.model_b_latency_ms is None:
+        raise HTTPException(status_code=400, detail="Battle results are not ready yet")
 
     vote_result = await db.execute(
         update(Battle)

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { Swords, FlaskConical, Trophy, Info, Menu, Settings } from "lucide-react";
+import { Swords, FlaskConical, Trophy, Info, Menu, Settings, LayoutGrid } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -11,6 +11,7 @@ import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/s
 const navItems = [
   { href: "/battle", label: "Battle", icon: Swords },
   { href: "/playground", label: "Playground", icon: FlaskConical },
+  { href: "/benchmark", label: "Benchmark", icon: LayoutGrid },
   { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
   { href: "/about", label: "About", icon: Info },
   { href: "/settings", label: "Settings", icon: Settings },
@@ -21,13 +22,13 @@ export default function Header() {
   const [open, setOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-14 items-center px-4 mx-auto">
-        <Link href="/" className="flex items-center gap-2 font-bold text-lg mr-8">
-          <div className="flex items-center justify-center h-7 w-7 rounded-md bg-primary text-primary-foreground">
+    <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      <div className="container mx-auto flex h-14 items-center px-4">
+        <Link href="/" className="mr-8 flex min-w-0 shrink-0 items-center gap-2 text-lg font-bold">
+          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
             <Swords className="h-4 w-4" />
           </div>
-          <span>DocParse Arena</span>
+          <span className="truncate">DocParse Arena</span>
         </Link>
 
         <nav className="hidden md:flex items-center gap-1">
@@ -51,12 +52,12 @@ export default function Header() {
         <div className="flex-1" />
 
         <Sheet open={open} onOpenChange={setOpen}>
-          <SheetTrigger asChild className="md:hidden">
-            <Button variant="ghost" size="icon">
+          <SheetTrigger asChild>
+            <Button variant="ghost" size="icon" className="md:hidden">
               <Menu className="h-5 w-5" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="right" className="w-64">
+          <SheetContent side="right" className="w-72 border-l border-border bg-background">
             <SheetTitle className="sr-only">Navigation</SheetTitle>
             <nav className="flex flex-col gap-2 mt-8">
               {navItems.map((item) => (

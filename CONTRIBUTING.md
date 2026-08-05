@@ -44,7 +44,7 @@ Thank you for your interest in contributing! This document provides guidelines f
 - Use type hints
 
 ### Frontend (TypeScript)
-- Next.js 15 App Router
+- Next.js 16 App Router
 - Tailwind CSS + shadcn/ui components
 - TypeScript strict mode
 

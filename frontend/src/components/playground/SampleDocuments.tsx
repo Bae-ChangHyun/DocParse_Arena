@@ -30,11 +30,11 @@ export default function SampleDocuments({ onSelect, selected }: SampleDocumentsP
         <button
           key={doc.name}
           onClick={() => onSelect(doc.name)}
-          className={`relative border rounded-lg p-2 hover:border-primary/50 transition-colors overflow-hidden ${
-            selected === doc.name ? "border-primary ring-1 ring-primary" : ""
+          className={`relative overflow-hidden rounded-[16px] border bg-card p-2 text-left transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-foreground/40 ${
+            selected === doc.name ? "border-foreground ring-2 ring-foreground/15" : ""
           }`}
         >
-          <div className="aspect-[3/4] bg-muted/30 rounded flex items-center justify-center overflow-hidden">
+          <div className="flex aspect-[3/4] items-center justify-center overflow-hidden rounded-[12px] bg-muted">
             {[".png", ".jpg", ".jpeg", ".webp", ".bmp"].includes(doc.extension) ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -46,7 +46,7 @@ export default function SampleDocuments({ onSelect, selected }: SampleDocumentsP
               <FileImage className="h-8 w-8 text-muted-foreground" />
             )}
           </div>
-          <p className="text-xs mt-1 truncate text-muted-foreground">{doc.name}</p>
+          <p className="mt-1 truncate text-xs text-muted-foreground">{doc.name}</p>
         </button>
       ))}
     </div>

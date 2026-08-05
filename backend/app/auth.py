@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 import jwt
-from fastapi import Request, HTTPException
+from fastapi import HTTPException, Request
 
 from app.config import get_settings
 
@@ -32,7 +32,12 @@ def verify_token(token: str) -> bool:
 async def require_admin(request: Request) -> None:
     settings = get_settings()
     if not settings.admin_password:
-        return  # No password set → open access
+        if settings.allow_unprotected_admin:
+            return
+        raise HTTPException(
+            status_code=503,
+            detail="ADMIN_PASSWORD is not set. Configure it in .env before using admin endpoints.",
+        )
 
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):

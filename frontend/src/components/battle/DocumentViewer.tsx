@@ -24,12 +24,12 @@ export default function DocumentViewer({ imageUrl, documentName }: DocumentViewe
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between p-2 border-b bg-muted/30">
-        <span className="text-xs font-medium text-muted-foreground truncate px-2">
+      <div className="flex items-center justify-between border-b px-4 py-3">
+        <span className="truncate text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
           {documentName || "Document"}
         </span>
       </div>
-      <div className="flex-1 overflow-hidden bg-muted/10 relative">
+      <div className="relative flex-1 overflow-hidden bg-muted">
         {pdf ? (
           <iframe
             src={imageUrl}
@@ -44,14 +44,14 @@ export default function DocumentViewer({ imageUrl, documentName }: DocumentViewe
           >
             {({ zoomIn, zoomOut, resetTransform }) => (
               <>
-                <div className="absolute top-2 right-2 z-10 flex gap-1">
-                  <Button variant="secondary" size="icon" className="h-7 w-7" onClick={() => zoomIn()}>
+                <div className="absolute right-3 top-3 z-10 flex gap-1">
+                  <Button variant="secondary" size="icon" className="h-8 w-8" onClick={() => zoomIn()}>
                     <ZoomIn className="h-3.5 w-3.5" />
                   </Button>
-                  <Button variant="secondary" size="icon" className="h-7 w-7" onClick={() => zoomOut()}>
+                  <Button variant="secondary" size="icon" className="h-8 w-8" onClick={() => zoomOut()}>
                     <ZoomOut className="h-3.5 w-3.5" />
                   </Button>
-                  <Button variant="secondary" size="icon" className="h-7 w-7" onClick={() => resetTransform()}>
+                  <Button variant="secondary" size="icon" className="h-8 w-8" onClick={() => resetTransform()}>
                     <RotateCcw className="h-3.5 w-3.5" />
                   </Button>
                 </div>

@@ -27,6 +27,20 @@ const LATEX_ENV_PATTERN = new RegExp(
   "g"
 );
 
+/**
+ * Remove model "thinking" so it shows only in the Raw view, never Rendered.
+ * - Strips complete <think>...</think> blocks.
+ * - During streaming, an unclosed <think> means thinking is in progress, so
+ *   everything from it onward is hidden until the closing tag arrives.
+ */
+export function stripThinking(text: string): string {
+  if (!text) return text;
+  let out = text.replace(/<think>[\s\S]*?<\/think>\s*/gi, "");
+  const open = out.search(/<think>/i);
+  if (open !== -1) out = out.slice(0, open);
+  return out;
+}
+
 export function preprocessOcrText(text: string): string {
   // Wrap standalone LaTeX environments in $$ for KaTeX rendering
   text = text.replace(LATEX_ENV_PATTERN, (match, _block, _env, offset) => {

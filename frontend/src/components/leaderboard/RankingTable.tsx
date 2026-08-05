@@ -24,16 +24,16 @@ export default function RankingTable() {
   }, []);
 
   if (loading) {
-    return <div className="text-center py-8 text-muted-foreground">Loading leaderboard...</div>;
+    return <div className="surface-card py-10 text-center text-muted-foreground">Loading leaderboard...</div>;
   }
 
   if (entries.length === 0) {
-    return <div className="text-center py-8 text-muted-foreground">No models registered yet.</div>;
+    return <div className="surface-card py-10 text-center text-muted-foreground">No models registered yet.</div>;
   }
 
   return (
-    <div className="rounded-lg border overflow-hidden">
-      <Table>
+    <div className="surface-panel overflow-hidden">
+      <Table className="min-w-[760px]">
         <TableHeader>
           <TableRow>
             <TableHead className="w-12 text-center">#</TableHead>
@@ -50,11 +50,11 @@ export default function RankingTable() {
           {entries.map((entry) => (
             <TableRow key={entry.id}>
               <TableCell className="text-center font-medium">
-                {entry.rank <= 3 ? ["🥇", "🥈", "🥉"][entry.rank - 1] : entry.rank}
+                {entry.rank}
               </TableCell>
               <TableCell>
                 <div className="flex items-center gap-2">
-                  <span>{entry.icon}</span>
+                  <span className="flex h-7 w-7 items-center justify-center rounded-[10px] bg-muted text-xs font-semibold">{entry.icon}</span>
                   <span className="font-medium">{entry.display_name}</span>
                 </div>
               </TableCell>
@@ -64,9 +64,9 @@ export default function RankingTable() {
               <TableCell className="text-right font-mono font-semibold">{entry.elo}</TableCell>
               <TableCell className="text-right">{entry.win_rate}%</TableCell>
               <TableCell className="text-right text-sm">
-                <span className="text-green-600">{entry.wins}</span>
+                <span className="text-foreground">{entry.wins}</span>
                 {" / "}
-                <span className="text-red-600">{entry.losses}</span>
+                <span className="text-muted-foreground">{entry.losses}</span>
               </TableCell>
               <TableCell className="text-right">{entry.total_battles}</TableCell>
               <TableCell className="text-right">

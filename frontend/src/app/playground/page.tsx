@@ -37,6 +37,7 @@ export default function PlaygroundPage() {
 
   // Prompt & Temperature state
   const [prompt, setPrompt] = useState("");
+  const [userPrompt, setUserPrompt] = useState("");
   const [promptSource, setPromptSource] = useState<string>("builtin");
   const [loadingPrompt, setLoadingPrompt] = useState(false);
   const [temperature, setTemperature] = useState<string>("");
@@ -55,10 +56,12 @@ export default function PlaygroundPage() {
     getResolvedPrompt(selectedModel)
       .then((data) => {
         setPrompt(data.prompt);
+        setUserPrompt(data.user_prompt ?? "");
         setPromptSource(data.source);
       })
       .catch(() => {
         setPrompt("");
+        setUserPrompt("");
         setPromptSource("builtin");
       })
       .finally(() => setLoadingPrompt(false));
@@ -92,16 +95,19 @@ export default function PlaygroundPage() {
   const sourceInfo = SOURCE_LABELS[promptSource] || SOURCE_LABELS.builtin;
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">Playground</h1>
-        <p className="text-muted-foreground mt-1">
+    <div className="mx-auto max-w-[1200px] overflow-hidden px-4 py-8">
+      <div className="mb-8 max-w-2xl">
+        <div className="mb-3 inline-flex rounded-full border border-border px-3 py-1 text-xs font-medium tracking-[0.01em] text-muted-foreground">
+          Single model test
+        </div>
+        <h1 className="font-display text-5xl font-medium leading-tight">Playground</h1>
+        <p className="mt-2 text-muted-foreground">
           Test individual parsing models on any document
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-1 space-y-6">
+      <div className="grid w-full min-w-0 grid-cols-1 gap-6 lg:grid-cols-[360px_1fr]">
+        <div className="w-[calc(100vw-2rem)] min-w-0 space-y-6 sm:w-full lg:col-span-1">
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Model</CardTitle>
@@ -126,7 +132,7 @@ export default function PlaygroundPage() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs">Prompt</Label>
+                  <Label className="text-xs">System Prompt</Label>
                   <Badge variant={sourceInfo.variant} className="text-[10px]">
                     {sourceInfo.label}
                   </Badge>
@@ -134,10 +140,20 @@ export default function PlaygroundPage() {
                 <Textarea
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
-                  placeholder="OCR prompt..."
+                  placeholder="System prompt (leave empty for none)..."
                   rows={5}
                   className="font-mono text-xs resize-y"
                 />
+                {userPrompt && (
+                  <div className="space-y-1">
+                    <Label className="text-[11px] text-muted-foreground">
+                      User Prompt (model-specific)
+                    </Label>
+                    <pre className="text-[11px] bg-muted p-2 rounded-md whitespace-pre-wrap font-mono">
+                      {userPrompt}
+                    </pre>
+                  </div>
+                )}
               </div>
               <div className="space-y-2">
                 <Label className="text-xs">Temperature</Label>
@@ -197,7 +213,7 @@ export default function PlaygroundPage() {
           </Card>
 
           <Button
-            className="w-full"
+            className="h-11 w-full"
             onClick={handleRun}
             disabled={!selectedModel || (!selectedDoc && !uploadedFile) || isLoading}
           >
@@ -205,7 +221,7 @@ export default function PlaygroundPage() {
           </Button>
         </div>
 
-        <div className="lg:col-span-2">
+        <div className="w-[calc(100vw-2rem)] min-w-0 sm:w-full">
           <PlaygroundResult result={result} isLoading={isLoading} error={error} />
         </div>
       </div>

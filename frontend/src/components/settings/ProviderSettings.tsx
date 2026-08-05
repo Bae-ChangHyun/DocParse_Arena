@@ -115,7 +115,9 @@ export default function ProviderSettings() {
       <div className="flex items-center justify-between mb-2">
         <div>
           <h2 className="text-lg font-semibold">API Providers</h2>
-          <p className="text-sm text-muted-foreground">Configure hosted provider API keys</p>
+          <p className="text-sm text-muted-foreground">
+            Configure hosted provider API keys and enable providers eligible for battles.
+          </p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={handleTestAll} disabled={testingAll} className="gap-1.5">
@@ -126,7 +128,7 @@ export default function ProviderSettings() {
       </div>
 
       {providers.map((provider) => (
-        <Card key={provider.id} className={testResults[provider.id] ? (testResults[provider.id].ok ? "border-green-500/30" : "border-red-500/30") : ""}>
+        <Card key={provider.id} className={testResults[provider.id] ? "border-foreground/20" : ""}>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div>

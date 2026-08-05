@@ -23,23 +23,26 @@ export default function SettingsPage() {
 
   return (
     <AuthGate>
-      <div className="container mx-auto px-4 py-8 max-w-6xl">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold">Settings</h1>
-          <p className="text-muted-foreground mt-1">
+      <div className="mx-auto max-w-[1200px] px-4 py-8">
+        <div className="mb-8 max-w-3xl">
+          <div className="mb-3 inline-flex rounded-full border border-border px-3 py-1 text-xs font-medium tracking-[0.01em] text-muted-foreground">
+            Control room
+          </div>
+          <h1 className="font-display text-5xl font-medium leading-tight">Settings</h1>
+          <p className="mt-2 text-muted-foreground">
             Manage API providers, OCR models, and prompts
           </p>
         </div>
 
-        <div className="flex gap-6">
-          <nav className="w-48 shrink-0">
-            <div className="sticky top-20 space-y-1">
+        <div className="flex flex-col gap-6 md:flex-row">
+          <nav className="w-full shrink-0 md:w-56">
+            <div className="surface-card grid grid-cols-2 gap-1 p-2 md:sticky md:top-24 md:block md:space-y-1">
               {SIDEBAR_ITEMS.map((item) => (
                 <button
                   key={item.key}
                   onClick={() => setActiveSection(item.key)}
                   className={cn(
-                    "w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors text-left",
+                    "w-full flex items-center gap-2 rounded-[10px] px-3 py-2.5 text-sm transition-colors text-left",
                     activeSection === item.key
                       ? item.key === "dangerous"
                         ? "bg-destructive text-destructive-foreground font-medium"

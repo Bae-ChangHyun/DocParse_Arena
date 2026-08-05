@@ -397,6 +397,12 @@ export default function ModelManagement() {
     return providers.find((p) => p.id === providerId)?.provider_type || providerId;
   };
 
+  const isProviderEnabled = (providerId: string) => {
+    if (providerId === "custom") return true;
+    const provider = providers.find((p) => p.id === providerId);
+    return provider ? provider.is_enabled : true;
+  };
+
   const getModelThinkingMeta = (model: OcrModelAdmin) => {
     const family = detectThinkingFamily(model.model_id);
     const supported = THINKING_PROVIDER_TYPES.has(getProviderType(model.provider)) && family !== "plain";
@@ -418,7 +424,7 @@ export default function ModelManagement() {
   const thinkingFamily = detectThinkingFamily(form.model_id);
   const thinkingSupported = isThinkingProvider && thinkingFamily !== "plain";
   const thinkingEnabled = thinkingMode !== "default" && thinkingMode !== "off";
-  const activeModelCount = models.filter((m) => m.is_active).length;
+  const activeModelCount = models.filter((m) => m.is_active && isProviderEnabled(m.provider)).length;
   const inactiveModelCount = models.length - activeModelCount;
   const providerCount = new Set(models.map((m) => m.provider)).size;
   const thinkingOnCount = models.filter((m) => getModelThinkingMeta(m).enabled).length;
@@ -456,13 +462,13 @@ export default function ModelManagement() {
 
   return (
     <>
-      <div className="rounded-lg border bg-card/90 shadow-[0_18px_45px_-32px_rgba(15,23,42,0.45)] overflow-hidden">
+      <div className="overflow-hidden rounded-[16px] border bg-card shadow-[inset_0_0_0_0.5px_rgba(0,0,0,0.075),0_0_1.143px_rgba(0,0,0,0.4)]">
         <div className="flex flex-col gap-5 p-5 md:p-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg border bg-background shadow-xs">
-                  <Server className="h-4 w-4 text-primary" />
+                <div className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background">
+                  <Server className="h-4 w-4 text-foreground" />
                 </div>
                 <h2 className="text-xl font-semibold tracking-tight">Models</h2>
               </div>
@@ -483,7 +489,7 @@ export default function ModelManagement() {
                 <Activity className="h-3.5 w-3.5" />
               </div>
               <div className="mt-2 font-mono text-2xl font-semibold">{activeModelCount}</div>
-              <div className="text-[11px] text-muted-foreground">{inactiveModelCount} inactive</div>
+              <div className="text-[11px] text-muted-foreground">{inactiveModelCount} inactive or disabled</div>
             </div>
             <div className="rounded-lg border bg-background/60 p-3">
               <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -538,8 +544,8 @@ export default function ModelManagement() {
         </div>
       </div>
 
-      <div className="mt-4 rounded-lg border bg-card/80 shadow-[0_18px_45px_-34px_rgba(15,23,42,0.38)] overflow-hidden">
-        <Table>
+      <div className="mt-4 overflow-hidden rounded-[16px] border bg-card shadow-[inset_0_0_0_0.5px_rgba(0,0,0,0.075),0_0_1.143px_rgba(0,0,0,0.4)]">
+        <Table className="min-w-[920px]">
           <TableHeader>
             <TableRow className="bg-muted/40 hover:bg-muted/40">
               <TableHead className="w-10">Active</TableHead>
@@ -590,6 +596,11 @@ export default function ModelManagement() {
                           No Key
                         </Badge>
                       )}
+                      {!isProviderEnabled(model.provider) && (
+                        <Badge variant="outline" className="text-[10px]">
+                          Disabled
+                        </Badge>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell className="font-mono text-xs max-w-[200px] truncate">{model.model_id}</TableCell>
@@ -600,7 +611,7 @@ export default function ModelManagement() {
                         className={cn(
                           "gap-1 text-[10px] font-mono",
                           thinkingMeta.enabled
-                            ? "border-emerald-300/70 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300"
+                            ? "border-foreground/20 bg-background text-foreground"
                             : "border-muted-foreground/20 bg-muted/40 text-muted-foreground",
                         )}
                       >
@@ -613,7 +624,7 @@ export default function ModelManagement() {
                   </TableCell>
                   <TableCell className="text-center">
                     {model.api_key ? (
-                      <Check className="h-4 w-4 text-green-600 mx-auto" />
+                      <Check className="mx-auto h-4 w-4 text-foreground" />
                     ) : (
                       <span className="text-xs text-muted-foreground">provider</span>
                     )}
@@ -760,12 +771,12 @@ export default function ModelManagement() {
             </div>
 
             {registryMatch && (
-              <div className="rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30 p-3 space-y-3">
-                <div className="flex items-center gap-2 text-sm font-medium text-blue-700 dark:text-blue-300">
+              <div className="space-y-3 rounded-[16px] border border-border bg-muted/50 p-3">
+                <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                   <Info className="h-4 w-4 shrink-0" />
                   Registry: {registryMatch.display_name}
                 </div>
-                <p className="text-xs text-blue-600 dark:text-blue-400">
+                <p className="text-xs text-muted-foreground">
                   {registryMatch.notes}
                 </p>
 
@@ -777,12 +788,12 @@ export default function ModelManagement() {
                         checked={useRegistryPrompt}
                         onCheckedChange={setUseRegistryPrompt}
                       />
-                      <Label htmlFor="use-registry-prompt" className="text-xs text-blue-700 dark:text-blue-300">
+                      <Label htmlFor="use-registry-prompt" className="text-xs text-foreground">
                         Use recommended prompt
                       </Label>
                     </div>
                   ) : (
-                    <p className="text-[11px] text-blue-600 dark:text-blue-400 italic">
+                    <p className="text-[11px] text-muted-foreground italic">
                       Prompt can be managed in the Prompts tab
                     </p>
                   )}
@@ -794,7 +805,7 @@ export default function ModelManagement() {
                         checked={useRegistryPostprocessor}
                         onCheckedChange={setUseRegistryPostprocessor}
                       />
-                      <Label htmlFor="use-registry-postprocessor" className="text-xs text-blue-700 dark:text-blue-300">
+                      <Label htmlFor="use-registry-postprocessor" className="text-xs text-foreground">
                         Enable post-processing ({registryMatch.postprocessor})
                       </Label>
                     </div>
@@ -804,7 +815,7 @@ export default function ModelManagement() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="gap-1.5 text-xs border-blue-300 dark:border-blue-700"
+                    className="gap-1.5 text-xs"
                     onClick={applyRegistryConfig}
                   >
                     <Zap className="h-3 w-3" />

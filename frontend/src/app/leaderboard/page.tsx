@@ -6,10 +6,13 @@ import HeadToHeadMatrix from "@/components/leaderboard/HeadToHeadMatrix";
 
 export default function LeaderboardPage() {
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">Leaderboard</h1>
-        <p className="text-muted-foreground mt-1">
+    <div className="mx-auto max-w-[1200px] px-4 py-8">
+      <div className="mb-8 max-w-3xl">
+        <div className="mb-3 inline-flex rounded-full border border-border px-3 py-1 text-xs font-medium tracking-[0.01em] text-muted-foreground">
+          Arena results
+        </div>
+        <h1 className="font-display text-5xl font-medium leading-tight">Leaderboard</h1>
+        <p className="mt-2 text-muted-foreground">
           Model rankings based on ELO rating from blind document parsing battles
         </p>
       </div>

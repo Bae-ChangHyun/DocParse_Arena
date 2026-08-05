@@ -9,12 +9,12 @@ import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import { sanitizeSchema } from "@/lib/markdown-config";
 import "katex/dist/katex.min.css";
-import { Copy, Check, Loader2 } from "lucide-react";
+import { Copy, Check, FileText, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { PlaygroundResponse } from "@/lib/api";
-import { preprocessOcrText } from "@/lib/markdown-utils";
+import { preprocessOcrText, stripThinking } from "@/lib/markdown-utils";
 
 interface PlaygroundResultProps {
   result: PlaygroundResponse | null;
@@ -34,10 +34,16 @@ export default function PlaygroundResult({ result, isLoading, error }: Playgroun
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-[calc(100vh-16rem)] border rounded-lg">
-        <div className="flex flex-col items-center gap-2">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">Running OCR...</span>
+      <div className="surface-panel flex min-h-[360px] h-[calc(100dvh-18rem)] items-center justify-center p-8">
+        <div className="w-full max-w-md space-y-3">
+          <div className="h-3 w-24 rounded-full bg-foreground" />
+          <div className="h-2 rounded-full bg-muted" />
+          <div className="h-2 w-5/6 rounded-full bg-muted" />
+          <div className="h-2 w-2/3 rounded-full bg-muted" />
+          <div className="flex items-center gap-2 pt-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Running OCR...
+          </div>
         </div>
       </div>
     );
@@ -45,27 +51,32 @@ export default function PlaygroundResult({ result, isLoading, error }: Playgroun
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-[calc(100vh-16rem)] border rounded-lg">
-        <p className="text-sm text-destructive">{error}</p>
+      <div className="surface-panel flex min-h-[360px] h-[calc(100dvh-18rem)] items-center justify-center p-8">
+        <p className="rounded-[16px] border border-destructive/20 bg-card px-4 py-3 text-sm text-destructive">{error}</p>
       </div>
     );
   }
 
   if (!result) {
     return (
-      <div className="flex items-center justify-center h-[calc(100vh-16rem)] border rounded-lg">
-        <span className="text-sm text-muted-foreground">
-          Select a model and document, then click &quot;Run OCR&quot;
-        </span>
+      <div className="surface-panel flex min-h-[360px] h-[calc(100dvh-18rem)] items-center justify-center p-8">
+        <div className="max-w-sm text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full border border-border bg-muted">
+            <FileText className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <span className="text-sm text-muted-foreground">
+            Select a model and document, then click &quot;Run OCR&quot;
+          </span>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="border rounded-lg overflow-hidden">
-      <div className="flex items-center justify-between p-3 border-b bg-muted/30">
+    <div className="surface-panel overflow-hidden">
+      <div className="flex items-center justify-between border-b px-5 py-4">
         <div className="flex items-center gap-3">
-          <span className="font-medium">{result.model_name}</span>
+          <span className="font-semibold tracking-[-0.01em]">{result.model_name}</span>
           <span className="text-xs text-muted-foreground">{(result.latency_ms / 1000).toFixed(1)}s</span>
         </div>
         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleCopy} aria-label="Copy result to clipboard">
@@ -79,18 +90,18 @@ export default function PlaygroundResult({ result, isLoading, error }: Playgroun
           <TabsTrigger value="raw">Raw</TabsTrigger>
         </TabsList>
         <TabsContent value="rendered">
-          <ScrollArea className="h-[calc(100vh-16rem)]">
-            <div className="p-4 prose prose-sm max-w-none dark:prose-invert">
+          <ScrollArea className="min-h-[360px] h-[calc(100dvh-18rem)]">
+            <div className="p-6 prose prose-sm max-w-none dark:prose-invert">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm, remarkMath]}
                 rehypePlugins={[rehypeKatex, rehypeRaw, [rehypeSanitize, sanitizeSchema]]}
-              >{preprocessOcrText(result.result)}</ReactMarkdown>
+              >{preprocessOcrText(stripThinking(result.result))}</ReactMarkdown>
             </div>
           </ScrollArea>
         </TabsContent>
         <TabsContent value="raw">
-          <ScrollArea className="h-[calc(100vh-16rem)]">
-            <pre className="p-4 text-xs font-mono whitespace-pre-wrap break-words">{result.result}</pre>
+          <ScrollArea className="min-h-[360px] h-[calc(100dvh-18rem)]">
+            <pre className="p-6 text-xs font-mono whitespace-pre-wrap break-words">{result.result}</pre>
           </ScrollArea>
         </TabsContent>
       </Tabs>

@@ -1,13 +1,16 @@
 # ── Stage 1: Frontend build ──────────────────────────────────
-FROM node:20-alpine AS frontend-builder
+FROM node:22-alpine AS frontend-builder
 WORKDIR /app/frontend
 
-# Install pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# Install pnpm (pinned: pnpm@latest pulled 11.6.0 which is incompatible with
+# node:20-alpine — ERR_UNKNOWN_BUILTIN_MODULE. Pin to the lockfile/dev version.)
+RUN corepack enable && corepack prepare pnpm@11.4.0 --activate
 
-# Install dependencies
+# Install dependencies. pnpm 11 fails a frozen install when dependency build
+# scripts are ignored (ERR_PNPM_IGNORED_BUILDS); allow them in this build stage
+# (matches the original default-pnpm behavior; sharp etc. need their scripts).
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --config.dangerouslyAllowAllBuilds=true
 
 # Build
 COPY frontend/ ./

@@ -4,8 +4,13 @@ import { Server, Eye, Puzzle, ShieldCheck, Wrench, Github } from "lucide-react";
 
 export default function AboutPage() {
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <h1 className="text-2xl font-bold mb-6">About DocParse Arena</h1>
+    <div className="mx-auto max-w-[1000px] px-4 py-8">
+      <div className="mb-8 max-w-3xl">
+        <div className="mb-3 inline-flex rounded-full border border-border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
+          Project notes
+        </div>
+        <h1 className="font-display text-5xl font-medium leading-tight">About DocParse Arena</h1>
+      </div>
 
       <div className="space-y-6">
         <Card>
@@ -15,21 +20,21 @@ export default function AboutPage() {
           <CardContent className="prose prose-sm dark:prose-invert max-w-none">
             <p>
               DocParse Arena is a <strong>self-hosted</strong> blind comparison platform for document parsing models.
-              Unlike cloud-based services, your documents never leave your infrastructure.
+              You control the deployment, sample pool, provider routing, and result storage.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 not-prose mt-4">
-              <div className="flex flex-col items-center gap-2 p-4 rounded-lg bg-accent/50 text-center">
-                <Server className="h-6 w-6 text-primary" />
+              <div className="flex flex-col items-center gap-2 rounded-[16px] border border-border bg-muted/60 p-5 text-center">
+                <Server className="h-6 w-6 text-foreground" />
                 <span className="text-sm font-semibold">Self-Hosted</span>
-                <span className="text-xs text-muted-foreground">Runs on your own server. No data leaves your network.</span>
+                <span className="text-xs text-muted-foreground">Runs on your own server with local storage and provider routing.</span>
               </div>
-              <div className="flex flex-col items-center gap-2 p-4 rounded-lg bg-accent/50 text-center">
-                <ShieldCheck className="h-6 w-6 text-primary" />
+              <div className="flex flex-col items-center gap-2 rounded-[16px] border border-border bg-background p-5 text-center">
+                <ShieldCheck className="h-6 w-6 text-foreground" />
                 <span className="text-sm font-semibold">Privacy-First</span>
-                <span className="text-xs text-muted-foreground">Evaluate sensitive documents safely. Optionally disable result storage.</span>
+                <span className="text-xs text-muted-foreground">Disable result storage and use self-hosted providers for fully internal evaluation.</span>
               </div>
-              <div className="flex flex-col items-center gap-2 p-4 rounded-lg bg-accent/50 text-center">
-                <Puzzle className="h-6 w-6 text-primary" />
+              <div className="flex flex-col items-center gap-2 rounded-[16px] border border-border bg-muted/60 p-5 text-center">
+                <Puzzle className="h-6 w-6 text-foreground" />
                 <span className="text-sm font-semibold">Customizable</span>
                 <span className="text-xs text-muted-foreground">Add your own models, providers, and prompts via Settings.</span>
               </div>
@@ -43,18 +48,18 @@ export default function AboutPage() {
           </CardHeader>
           <CardContent className="prose prose-sm dark:prose-invert max-w-none">
             <div className="not-prose grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-              <div className="flex flex-col items-center gap-2 p-4 rounded-lg border text-center">
-                <span className="text-2xl font-bold text-primary">1</span>
+              <div className="flex flex-col items-center gap-2 rounded-[16px] border border-border bg-background p-5 text-center">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-muted font-mono text-sm font-semibold text-foreground">1</span>
                 <span className="text-sm font-semibold">Upload</span>
                 <span className="text-xs text-muted-foreground">Upload a document or pick a random sample from the pool.</span>
               </div>
-              <div className="flex flex-col items-center gap-2 p-4 rounded-lg border text-center">
-                <span className="text-2xl font-bold text-primary">2</span>
+              <div className="flex flex-col items-center gap-2 rounded-[16px] border border-border bg-background p-5 text-center">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-muted font-mono text-sm font-semibold text-foreground">2</span>
                 <span className="text-sm font-semibold">Compare</span>
                 <span className="text-xs text-muted-foreground">Two anonymous models parse the document side-by-side in real time.</span>
               </div>
-              <div className="flex flex-col items-center gap-2 p-4 rounded-lg border text-center">
-                <span className="text-2xl font-bold text-primary">3</span>
+              <div className="flex flex-col items-center gap-2 rounded-[16px] border border-border bg-background p-5 text-center">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-muted font-mono text-sm font-semibold text-foreground">3</span>
                 <span className="text-sm font-semibold">Vote</span>
                 <span className="text-xs text-muted-foreground">Pick the better result. ELO ratings update automatically.</span>
               </div>
@@ -87,6 +92,7 @@ export default function AboutPage() {
               </li>
               <li>
                 <strong>Privacy Controls:</strong> Set <code>STORE_OCR_RESULTS=false</code> to prevent storing parsed results. Documents stay ephemeral.
+                Hosted providers still receive the document image for processing.
               </li>
               <li>
                 <strong>Full Admin Control:</strong> Manage providers, models, prompts, and system parameters through the built-in Settings page.

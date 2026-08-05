@@ -3,6 +3,10 @@ services:
     build: .
     ports:
       - "${APP_PORT:-3000}:${PORT:-3000}"
+    # Lets the container reach host-served local model servers (e.g. vLLM via
+    # llmux on the host) at http://host.docker.internal:<port>.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - docparse-data:/app/data
       - ./backend/sample_docs:/app/backend/sample_docs

@@ -11,6 +11,7 @@ import { Loader2, Lock } from "lucide-react";
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [checking, setChecking] = useState(true);
   const [authRequired, setAuthRequired] = useState(false);
+  const [adminConfigured, setAdminConfigured] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
@@ -18,8 +19,9 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     getAuthStatus()
-      .then(({ auth_required }) => {
+      .then(({ auth_required, admin_configured }) => {
         setAuthRequired(auth_required);
+        setAdminConfigured(admin_configured);
         if (!auth_required) setAuthenticated(true);
       })
       .catch((e) => toast.error("Failed to check auth status", { description: String(e) }))
@@ -48,6 +50,24 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   }
 
   if (authRequired && !authenticated) {
+    if (!adminConfigured) {
+      return (
+        <div className="container mx-auto px-4 py-20 max-w-md">
+          <Card>
+            <CardHeader className="text-center">
+              <div className="mx-auto mb-2 h-12 w-12 rounded-full bg-muted flex items-center justify-center">
+                <Lock className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <CardTitle>Admin Password Required</CardTitle>
+              <CardDescription>
+                Set ADMIN_PASSWORD in .env and restart the app to use Settings.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        </div>
+      );
+    }
+
     return (
       <div className="container mx-auto px-4 py-20 max-w-md">
         <Card>

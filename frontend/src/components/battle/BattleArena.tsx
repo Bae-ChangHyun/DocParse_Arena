@@ -12,6 +12,7 @@ import {
   ResizableHandle,
 } from "@/components/ui/resizable";
 import {
+  abortBattle,
   startBattle,
   streamBattle,
   voteBattle,
@@ -38,6 +39,7 @@ interface BattleState {
   voteResult: VoteResponse | null;
   isStarting: boolean;
   isVoting: boolean;
+  isEndingEarly: boolean;
 }
 
 const initialState: BattleState = {
@@ -59,12 +61,27 @@ const initialState: BattleState = {
   voteResult: null,
   isStarting: false,
   isVoting: false,
+  isEndingEarly: false,
 };
 
 export default function BattleArena() {
   const [state, setState] = useState<BattleState>(initialState);
+  const [isCompact, setIsCompact] = useState(() =>
+    typeof window !== "undefined"
+      ? window.matchMedia("(max-width: 767px)").matches
+      : false
+  );
   const eventSourceRef = useRef<EventSource | null>(null);
+  const activeBattleIdRef = useRef<string | null>(null);
   const documentUrlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 767px)");
+    const handleChange = () => setIsCompact(mediaQuery.matches);
+    handleChange();
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, []);
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -73,12 +90,140 @@ export default function BattleArena() {
 
   useEffect(() => {
     return () => {
+      activeBattleIdRef.current = null;
       eventSourceRef.current?.close();
       // Revoke blob URL on unmount
       if (documentUrlRef.current?.startsWith("blob:")) {
         URL.revokeObjectURL(documentUrlRef.current);
       }
     };
+  }, []);
+
+  const connectBattleStream = useCallback((battleId: string) => {
+    activeBattleIdRef.current = battleId;
+    eventSourceRef.current?.close();
+    eventSourceRef.current = streamBattle(battleId, (event, data: unknown) => {
+      if (activeBattleIdRef.current !== battleId) return;
+
+      const d = data as { text?: string; token?: string; latency_ms?: number; error?: string };
+
+      switch (event) {
+        case "model_a_token":
+          setState((prev) => ({
+            ...prev,
+            modelALoading: false,
+            modelAStreaming: true,
+            modelAStreamText: prev.modelAStreamText + (d.token || ""),
+          }));
+          break;
+        case "model_b_token":
+          setState((prev) => ({
+            ...prev,
+            modelBLoading: false,
+            modelBStreaming: true,
+            modelBStreamText: prev.modelBStreamText + (d.token || ""),
+          }));
+          break;
+        case "model_a_done":
+          setState((prev) => ({
+            ...prev,
+            modelAText: d.error ? (prev.modelAStreamText || null) : prev.modelAStreamText,
+            modelALatency: d.latency_ms ?? null,
+            modelAError: d.error || null,
+            modelAStreaming: false,
+            modelALoading: false,
+          }));
+          break;
+        case "model_b_done":
+          setState((prev) => ({
+            ...prev,
+            modelBText: d.error ? (prev.modelBStreamText || null) : prev.modelBStreamText,
+            modelBLatency: d.latency_ms ?? null,
+            modelBError: d.error || null,
+            modelBStreaming: false,
+            modelBLoading: false,
+          }));
+          break;
+        case "model_a_replace":
+          setState((prev) => ({
+            ...prev,
+            modelAStreamText: d.text ?? prev.modelAStreamText,
+            modelAText: prev.modelAText !== null ? (d.text ?? prev.modelAText) : prev.modelAText,
+          }));
+          break;
+        case "model_b_replace":
+          setState((prev) => ({
+            ...prev,
+            modelBStreamText: d.text ?? prev.modelBStreamText,
+            modelBText: prev.modelBText !== null ? (d.text ?? prev.modelBText) : prev.modelBText,
+          }));
+          break;
+        case "model_a_result":
+          setState((prev) => ({
+            ...prev,
+            modelAText: d.text ?? "",
+            modelALatency: d.latency_ms ?? null,
+            modelAError: d.error || null,
+            modelALoading: false,
+          }));
+          break;
+        case "model_b_result":
+          setState((prev) => ({
+            ...prev,
+            modelBText: d.text ?? "",
+            modelBLatency: d.latency_ms ?? null,
+            modelBError: d.error || null,
+            modelBLoading: false,
+          }));
+          break;
+        case "stream_error": {
+          const message = d.error || "Stream failed";
+          toast.error("Battle stream failed", { description: message });
+          activeBattleIdRef.current = null;
+          eventSourceRef.current = null;
+          setState((prev) => ({
+            ...prev,
+            modelALoading: false,
+            modelBLoading: false,
+            modelAStreaming: false,
+            modelBStreaming: false,
+            modelAError: prev.modelAText !== null || prev.modelAError ? prev.modelAError : message,
+            modelBError: prev.modelBText !== null || prev.modelBError ? prev.modelBError : message,
+            isEndingEarly: true,
+          }));
+          void abortBattle(battleId)
+            .then((result) => {
+              setState((prev) => {
+                const retryStarted =
+                  prev.modelALoading || prev.modelBLoading || prev.modelAStreaming || prev.modelBStreaming;
+                if (prev.battleId !== battleId || retryStarted) return prev;
+                return {
+                  ...prev,
+                  modelALatency: prev.modelALatency ?? result.model_a_latency_ms,
+                  modelBLatency: prev.modelBLatency ?? result.model_b_latency_ms,
+                  isEndingEarly: false,
+                };
+              });
+            })
+            .catch((err) => {
+              toast.error("Failed to finalize failed battle", {
+                description: err instanceof Error ? err.message : undefined,
+              });
+              setState((prev) => {
+                const retryStarted =
+                  prev.modelALoading || prev.modelBLoading || prev.modelAStreaming || prev.modelBStreaming;
+                return prev.battleId === battleId && !retryStarted ? { ...prev, isEndingEarly: false } : prev;
+              });
+            });
+          break;
+        }
+        case "done":
+          activeBattleIdRef.current = null;
+          eventSourceRef.current?.close();
+          eventSourceRef.current = null;
+          break;
+      }
+    });
   }, []);
 
   const handleStartBattle = useCallback(async (file?: File, documentName?: string) => {
@@ -102,81 +247,7 @@ export default function BattleArena() {
         modelBLoading: true,
       }));
 
-      eventSourceRef.current?.close();
-      eventSourceRef.current = streamBattle(response.battle_id, (event, data: unknown) => {
-        const d = data as { text?: string; token?: string; latency_ms?: number; error?: string };
-
-        switch (event) {
-          case "model_a_token":
-            setState((prev) => ({
-              ...prev,
-              modelALoading: false,
-              modelAStreaming: true,
-              modelAStreamText: prev.modelAStreamText + (d.token || ""),
-            }));
-            break;
-          case "model_b_token":
-            setState((prev) => ({
-              ...prev,
-              modelBLoading: false,
-              modelBStreaming: true,
-              modelBStreamText: prev.modelBStreamText + (d.token || ""),
-            }));
-            break;
-          case "model_a_done":
-            setState((prev) => ({
-              ...prev,
-              modelAText: prev.modelAStreamText || null,
-              modelALatency: d.latency_ms || null,
-              modelAError: d.error || null,
-              modelAStreaming: false,
-              modelALoading: false,
-            }));
-            break;
-          case "model_b_done":
-            setState((prev) => ({
-              ...prev,
-              modelBText: prev.modelBStreamText || null,
-              modelBLatency: d.latency_ms || null,
-              modelBError: d.error || null,
-              modelBStreaming: false,
-              modelBLoading: false,
-            }));
-            break;
-          case "model_a_replace":
-            setState((prev) => ({
-              ...prev,
-              modelAStreamText: d.text || prev.modelAStreamText,
-              modelAText: prev.modelAText ? (d.text || prev.modelAText) : prev.modelAText,
-            }));
-            break;
-          case "model_b_replace":
-            setState((prev) => ({
-              ...prev,
-              modelBStreamText: d.text || prev.modelBStreamText,
-              modelBText: prev.modelBText ? (d.text || prev.modelBText) : prev.modelBText,
-            }));
-            break;
-          case "model_a_result":
-            setState((prev) => ({
-              ...prev,
-              modelAText: d.text || null,
-              modelALatency: d.latency_ms || null,
-              modelAError: d.error || null,
-              modelALoading: false,
-            }));
-            break;
-          case "model_b_result":
-            setState((prev) => ({
-              ...prev,
-              modelBText: d.text || null,
-              modelBLatency: d.latency_ms || null,
-              modelBError: d.error || null,
-              modelBLoading: false,
-            }));
-            break;
-        }
-      });
+      connectBattleStream(response.battle_id);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to start battle";
       setState((prev) => ({
@@ -186,7 +257,7 @@ export default function BattleArena() {
         modelBError: message,
       }));
     }
-  }, []);
+  }, [connectBattleStream]);
 
   const handleFileSelect = useCallback(
     (file: File) => handleStartBattle(file),
@@ -226,7 +297,75 @@ export default function BattleArena() {
     }
   }, [state.battleId]);
 
+  const handleRetry = useCallback(() => {
+    if (!state.battleId) return;
+    setState((prev) => ({
+      ...prev,
+      modelAText: null,
+      modelBText: null,
+      modelALatency: null,
+      modelBLatency: null,
+      modelAError: null,
+      modelBError: null,
+      modelALoading: true,
+      modelBLoading: true,
+      modelAStreaming: false,
+      modelBStreaming: false,
+      modelAStreamText: "",
+      modelBStreamText: "",
+      isEndingEarly: false,
+      voteResult: null,
+    }));
+    connectBattleStream(state.battleId);
+  }, [connectBattleStream, state.battleId]);
+
+  const handleEndEarly = useCallback(async () => {
+    if (!state.battleId) return;
+
+    const battleId = state.battleId;
+    const stoppedMessage = "Stopped before completion";
+    activeBattleIdRef.current = null;
+    eventSourceRef.current?.close();
+    eventSourceRef.current = null;
+
+    setState((prev) => {
+      const modelAText = prev.modelAText ?? (prev.modelAStreamText ? prev.modelAStreamText : null);
+      const modelBText = prev.modelBText ?? (prev.modelBStreamText ? prev.modelBStreamText : null);
+
+      return {
+        ...prev,
+        modelAText,
+        modelBText,
+        modelALoading: false,
+        modelBLoading: false,
+        modelAStreaming: false,
+        modelBStreaming: false,
+        modelAError: modelAText !== null || prev.modelAError ? prev.modelAError : stoppedMessage,
+        modelBError: modelBText !== null || prev.modelBError ? prev.modelBError : stoppedMessage,
+        isEndingEarly: true,
+      };
+    });
+
+    try {
+      const result = await abortBattle(battleId);
+      setState((prev) => {
+        if (prev.battleId !== battleId) return prev;
+        return {
+          ...prev,
+          modelALatency: prev.modelALatency ?? result.model_a_latency_ms,
+          modelBLatency: prev.modelBLatency ?? result.model_b_latency_ms,
+          isEndingEarly: false,
+        };
+      });
+      toast.info("Battle stopped", { description: "You can vote with the available output or retry." });
+    } catch (err) {
+      toast.error("Failed to stop battle", { description: err instanceof Error ? err.message : undefined });
+      setState((prev) => (prev.battleId === battleId ? { ...prev, isEndingEarly: false } : prev));
+    }
+  }, [state.battleId]);
+
   const handleNewBattle = useCallback(() => {
+    activeBattleIdRef.current = null;
     eventSourceRef.current?.close();
     eventSourceRef.current = null;
     // Revoke blob URL to prevent memory leak
@@ -238,7 +377,7 @@ export default function BattleArena() {
 
   if (!state.battleId && !state.isStarting) {
     return (
-      <div className="flex items-center justify-center h-[calc(100vh-3.5rem)]">
+      <div className="flex min-h-[calc(100dvh-3.5rem)] items-center justify-center px-4">
         <DocumentUpload
           onFileSelect={handleFileSelect}
           onRandomDoc={handleRandomDoc}
@@ -248,70 +387,97 @@ export default function BattleArena() {
     );
   }
 
+  const modelAReady = state.modelAText !== null || state.modelAError !== null;
+  const modelBReady = state.modelBText !== null || state.modelBError !== null;
   const resultsReady =
     !state.modelALoading && !state.modelBLoading &&
     !state.modelAStreaming && !state.modelBStreaming &&
-    (state.modelAText || state.modelAError) &&
-    (state.modelBText || state.modelBError);
+    modelAReady && modelBReady;
+  const hasPendingResult =
+    state.modelALoading || state.modelBLoading || state.modelAStreaming || state.modelBStreaming;
+  const hasErrorResult = state.modelAError !== null || state.modelBError !== null;
+  const canEndEarly = !!state.battleId && !state.voteResult && hasPendingResult;
+  const canRetry = !!state.battleId && !state.voteResult && !state.isStarting && (hasPendingResult || hasErrorResult);
+
+  const documentPane = (
+    <div className="surface-card relative h-full overflow-hidden">
+      {state.documentUrl ? (
+        <DocumentViewer imageUrl={state.documentUrl} documentName={state.documentName || undefined} />
+      ) : (
+        <div className="flex items-center justify-center h-full">
+          <span className="text-sm text-muted-foreground">Loading document...</span>
+        </div>
+      )}
+    </div>
+  );
+
+  const modelAResult = (
+    <ModelResult
+      label="Model A"
+      text={state.modelAText}
+      latencyMs={state.modelALatency}
+      isLoading={state.modelALoading}
+      isStreaming={state.modelAStreaming}
+      streamingText={state.modelAStreamText}
+      error={state.modelAError}
+      modelName={state.voteResult?.model_a.display_name}
+      eloChange={state.voteResult?.model_a_elo_change}
+    />
+  );
+
+  const modelBResult = (
+    <ModelResult
+      label="Model B"
+      text={state.modelBText}
+      latencyMs={state.modelBLatency}
+      isLoading={state.modelBLoading}
+      isStreaming={state.modelBStreaming}
+      streamingText={state.modelBStreamText}
+      error={state.modelBError}
+      modelName={state.voteResult?.model_b.display_name}
+      eloChange={state.voteResult?.model_b_elo_change}
+    />
+  );
 
   return (
-    <div className="flex flex-col h-[calc(100vh-3.5rem)]">
-      <ResizablePanelGroup orientation="horizontal" className="flex-1 min-h-0 p-2">
-        <ResizablePanel defaultSize={33} minSize={15}>
-          <div className="relative h-full border rounded-lg overflow-hidden">
-            {state.documentUrl ? (
-              <DocumentViewer imageUrl={state.documentUrl} documentName={state.documentName || undefined} />
-            ) : (
-              <div className="flex items-center justify-center h-full">
-                <span className="text-sm text-muted-foreground">Loading document...</span>
-              </div>
-            )}
-          </div>
-        </ResizablePanel>
+    <div className="flex h-[calc(100dvh-3.5rem)] flex-col">
+      {isCompact ? (
+        <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-2">
+          <div className="h-[42dvh] min-h-[280px]">{documentPane}</div>
+          <div className="h-[55dvh] min-h-[360px]">{modelAResult}</div>
+          <div className="h-[55dvh] min-h-[360px]">{modelBResult}</div>
+        </div>
+      ) : (
+        <ResizablePanelGroup orientation="horizontal" className="flex-1 min-h-0 p-4">
+          <ResizablePanel defaultSize={33} minSize={15}>
+            {documentPane}
+          </ResizablePanel>
 
-        <ResizableHandle withHandle />
+          <ResizableHandle withHandle />
 
-        <ResizablePanel defaultSize={34} minSize={15}>
-          <div className="h-full px-1">
-            <ModelResult
-              label="Model A"
-              text={state.modelAText}
-              latencyMs={state.modelALatency}
-              isLoading={state.modelALoading}
-              isStreaming={state.modelAStreaming}
-              streamingText={state.modelAStreamText}
-              error={state.modelAError}
-              modelName={state.voteResult?.model_a.display_name}
-              eloChange={state.voteResult?.model_a_elo_change}
-            />
-          </div>
-        </ResizablePanel>
+          <ResizablePanel defaultSize={34} minSize={15}>
+            <div className="h-full px-1">{modelAResult}</div>
+          </ResizablePanel>
 
-        <ResizableHandle withHandle />
+          <ResizableHandle withHandle />
 
-        <ResizablePanel defaultSize={33} minSize={15}>
-          <div className="h-full">
-            <ModelResult
-              label="Model B"
-              text={state.modelBText}
-              latencyMs={state.modelBLatency}
-              isLoading={state.modelBLoading}
-              isStreaming={state.modelBStreaming}
-              streamingText={state.modelBStreamText}
-              error={state.modelBError}
-              modelName={state.voteResult?.model_b.display_name}
-              eloChange={state.voteResult?.model_b_elo_change}
-            />
-          </div>
-        </ResizablePanel>
-      </ResizablePanelGroup>
+          <ResizablePanel defaultSize={33} minSize={15}>
+            <div className="h-full">{modelBResult}</div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      )}
 
       <VoteButtons
         onVote={handleVote}
+        onEndEarly={handleEndEarly}
         onNewBattle={handleNewBattle}
+        onRetry={handleRetry}
         isVoting={state.isVoting}
+        isEndingEarly={state.isEndingEarly}
         hasVoted={!!state.voteResult}
         disabled={!resultsReady}
+        canEndEarly={canEndEarly}
+        canRetry={canRetry}
       />
     </div>
   );
