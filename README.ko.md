@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.13+](https://img.shields.io/badge/Python-3.13%2B-blue.svg)](https://www.python.org/downloads/release/python-3130/)
-[![Next.js 15](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
+[![Next.js 16](https://img.shields.io/badge/Next.js-16-black.svg)](https://nextjs.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-009688.svg)](https://fastapi.tiangolo.com/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](https://www.docker.com/)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-D97757.svg?logo=claude&logoColor=white)](https://docs.anthropic.com/en/docs/claude-code)
@@ -62,9 +62,9 @@ ELO 랭킹 기반 블라인드 배틀, 실시간 스트리밍, Docker 원클릭 
 ### Docker Compose (권장)
 
 ```bash
-git clone https://github.com/Bae-ChangHyun/DocParse_Arena.git
+git clone https://github.com/Changroro/DocParse_Arena.git
 cd DocParse_Arena
-cp .env.example .env    # API 키와 ADMIN_PASSWORD 설정
+cp .env.example .env    # ADMIN_PASSWORD와 사용할 프로바이더 API 키 설정
 docker compose up -d
 ```
 
@@ -84,7 +84,7 @@ docker compose up -d
 **사전 요구사항:** Python 3.13+, Node.js 18+, [uv](https://docs.astral.sh/uv/), [pnpm](https://pnpm.io/)
 
 ```bash
-git clone https://github.com/Bae-ChangHyun/DocParse_Arena.git
+git clone https://github.com/Changroro/DocParse_Arena.git
 cd DocParse_Arena
 
 # 백엔드
@@ -102,8 +102,8 @@ cd frontend && pnpm dev &
 
 ### 환경 변수
 
-`.env.example`을 `.env`로 복사하고 API 키를 입력합니다.
-사용할 프로바이더의 키만 설정하면 됩니다.
+`.env.example`을 `.env`로 복사하고 `ADMIN_PASSWORD`와 사용할 프로바이더의 API 키를 입력합니다.
+API 키는 이후 **Settings > API Providers**에서도 관리할 수 있습니다.
 
 ### VLM 레지스트리
 
@@ -152,14 +152,15 @@ cd frontend && pnpm dev &
 - **VLM 레지스트리에 모델 추가** — `backend/app/vlm_registry.py`에 추가해주세요.
 - **새 프로바이더 추가** — `backend/app/ocr_providers/`에서 `OcrProvider` 인터페이스를 구현합니다.
 - **UI 개선** — 프론트엔드는 `frontend/src/`에 shadcn/ui 컴포넌트로 구성되어 있습니다.
-- **버그 리포트** — [이슈](https://github.com/Bae-ChangHyun/DocParse_Arena/issues)를 열어주세요.
+- **버그 리포트** — [이슈](https://github.com/Changroro/DocParse_Arena/issues)를 열어주세요.
 
 ## 보안
 
-- `.env`에 강력한 `ADMIN_PASSWORD`를 설정하여 관리자 UI를 보호하세요.
+- `.env`에 강력한 `ADMIN_PASSWORD`를 설정하세요. 설정하지 않으면 관리자 API는 기본적으로 비활성화됩니다.
 - 공개 호스팅 시 `CORS_ORIGINS`를 설정하여 API 접근을 제한하세요.
-- API 키는 데이터베이스에 저장됩니다 — `data/docparse_arena.db`를 안전하게 보호하고 절대 커밋하지 마세요.
+- Settings에서 저장한 API 키는 데이터베이스에 저장됩니다 — `data/docparse_arena.db`를 안전하게 보호하고 절대 커밋하지 마세요. `.env`에만 둔 키는 런타임에 읽습니다.
 - 업로드 파일은 경로 순회 방지, 크기 제한, PDF 페이지 상한으로 검증됩니다.
+- hosted provider를 사용하면 문서가 해당 provider API로 전송됩니다. 문서가 완전히 내부에 머물러야 한다면 자체 호스팅/custom provider를 사용하세요.
 
 취약점 보고는 [SECURITY.md](SECURITY.md)를 참고하세요.
 
@@ -167,7 +168,7 @@ cd frontend && pnpm dev &
 
 | 레이어 | 기술 |
 |--------|------|
-| 프론트엔드 | Next.js 15 (App Router), TypeScript, Tailwind CSS, shadcn/ui |
+| 프론트엔드 | Next.js 16 (App Router), TypeScript, Tailwind CSS, shadcn/ui |
 | 백엔드 | Python 3.13, FastAPI, SQLAlchemy (async), SQLite |
 | 스트리밍 | SSE (Server-Sent Events), markstream-react |
 | 렌더링 | react-markdown, remark-gfm, remark-math, rehype-katex, rehype-sanitize |

@@ -5,7 +5,7 @@
 If you discover a security vulnerability, please report it responsibly:
 
 1. **Do NOT open a public GitHub issue.**
-2. Use [GitHub Security Advisories](https://github.com/Bae-ChangHyun/DocParse_Arena/security/advisories/new) to report privately.
+2. Use [GitHub Security Advisories](https://github.com/Changroro/DocParse_Arena/security/advisories/new) to report privately.
 3. Include:
    - Description of the vulnerability
    - Steps to reproduce
@@ -24,7 +24,8 @@ We will acknowledge receipt within 48 hours and provide a fix timeline.
 
 - This is a self-hosted tool intended for internal/evaluation use.
 - API keys stored in the database are not encrypted at rest. Use environment-level security to protect the SQLite database file.
-- Admin authentication uses JWT tokens with configurable expiry. Set `ADMIN_PASSWORD` in production.
+- Admin authentication uses JWT tokens with configurable expiry. Admin endpoints are disabled by default when `ADMIN_PASSWORD` is missing.
+- Hosted model providers receive uploaded document content for processing. Use custom/self-hosted providers for documents that must remain fully internal.
 
 ## Best Practices for Deployment
 

@@ -2,14 +2,14 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.13+](https://img.shields.io/badge/Python-3.13%2B-blue.svg)](https://www.python.org/downloads/release/python-3130/)
-[![Next.js 15](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
+[![Next.js 16](https://img.shields.io/badge/Next.js-16-black.svg)](https://nextjs.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-009688.svg)](https://fastapi.tiangolo.com/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](https://www.docker.com/)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-D97757.svg?logo=claude&logoColor=white)](https://docs.anthropic.com/en/docs/claude-code)
 
 **English** | [한국어](README.ko.md)
 
-Compare ANY document parsing model — Claude, GPT, Gemini, or your self-hosted VLMs — side-by-side on your own private documents.
+Compare ANY document parsing model — Claude, GPT, Gemini, or your self-hosted VLMs — side-by-side on your own documents.
 ELO-ranked blind battles, real-time streaming, Docker one-click deploy.
 
 > **Built with AI** — Over 90% of this project was developed using [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
@@ -63,9 +63,9 @@ and run fair blind evaluations with your own data.
 ### Docker Compose (Recommended)
 
 ```bash
-git clone https://github.com/Bae-ChangHyun/DocParse_Arena.git
+git clone https://github.com/Changroro/DocParse_Arena.git
 cd DocParse_Arena
-cp .env.example .env    # Edit with your API keys and ADMIN_PASSWORD
+cp .env.example .env    # Set ADMIN_PASSWORD and any provider API keys you use
 docker compose up -d
 ```
 
@@ -85,7 +85,7 @@ Then open http://localhost:3001.
 **Prerequisites:** Python 3.13+, Node.js 18+, [uv](https://docs.astral.sh/uv/), [pnpm](https://pnpm.io/)
 
 ```bash
-git clone https://github.com/Bae-ChangHyun/DocParse_Arena.git
+git clone https://github.com/Changroro/DocParse_Arena.git
 cd DocParse_Arena
 
 # Backend
@@ -103,8 +103,8 @@ cd frontend && pnpm dev &
 
 ### Environment Variables
 
-Copy `.env.example` to `.env` and fill in your API keys.
-You only need keys for the providers you want to use.
+Copy `.env.example` to `.env`, set `ADMIN_PASSWORD`, and fill in API keys for the providers you want to use.
+Keys can also be managed later in **Settings > API Providers**.
 
 ### VLM Registry
 
@@ -153,14 +153,15 @@ Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 - **Add a VLM to the registry** — Add it to `backend/app/vlm_registry.py`.
 - **Add a new provider** — Implement the `OcrProvider` interface in `backend/app/ocr_providers/`.
 - **Improve the UI** — Frontend lives in `frontend/src/` with shadcn/ui components.
-- **Report bugs** — Open an [issue](https://github.com/Bae-ChangHyun/DocParse_Arena/issues).
+- **Report bugs** — Open an [issue](https://github.com/Changroro/DocParse_Arena/issues).
 
 ## Security
 
-- Set a strong `ADMIN_PASSWORD` in `.env` to protect the admin UI.
+- Set a strong `ADMIN_PASSWORD` in `.env`; admin endpoints are disabled by default when it is missing.
 - Configure `CORS_ORIGINS` to restrict API access when hosting publicly.
-- API keys are stored in the database — keep `data/docparse_arena.db` secured and never commit it.
+- API keys saved through Settings are stored in the database — keep `data/docparse_arena.db` secured and never commit it. API keys set only in `.env` are read at runtime.
 - Uploaded files are validated with path traversal guards, size limits, and PDF page caps.
+- Documents sent to hosted providers leave your infrastructure for that provider's API. Use self-hosted/custom providers when documents must remain fully internal.
 
 See [SECURITY.md](SECURITY.md) for vulnerability reporting.
 
@@ -168,7 +169,7 @@ See [SECURITY.md](SECURITY.md) for vulnerability reporting.
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Next.js 15 (App Router), TypeScript, Tailwind CSS, shadcn/ui |
+| Frontend | Next.js 16 (App Router), TypeScript, Tailwind CSS, shadcn/ui |
 | Backend | Python 3.13, FastAPI, SQLAlchemy (async), SQLite |
 | Streaming | SSE (Server-Sent Events), markstream-react |
 | Rendering | react-markdown, remark-gfm, remark-math, rehype-katex, rehype-sanitize |
