@@ -209,6 +209,18 @@ class AdminLoginRequest(BaseModel):
     password: str
 
 
+class ImageSettingOut(BaseModel):
+    enabled: bool
+    max_width: int
+    max_height: int
+
+
+class ImageSettingUpdate(BaseModel):
+    enabled: bool | None = None
+    max_width: int | None = None
+    max_height: int | None = None
+
+
 class OcrResult(BaseModel):
     text: str
     latency_ms: int

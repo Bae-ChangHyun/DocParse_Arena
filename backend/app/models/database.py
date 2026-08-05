@@ -23,6 +23,13 @@ class ProviderSetting(Base):
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
+class AppSetting(Base):
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(String, primary_key=True)
+    value: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
 class PromptSetting(Base):
     __tablename__ = "prompt_settings"
 
